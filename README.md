@@ -9,7 +9,7 @@ What is River?
 > When I was on Plan 9, everything was connected and uniform. Now everything
 > isn't connected, just connected to the cloud, which isn't the same thing.
 
-- [Rob Pike](http://usesthis.com/interviews/rob.pike/)
+— [Rob Pike](http://usesthis.com/interviews/rob.pike/)
 
 Streaming music services have rapidly become most people's preferred way of
 listening to music. No local storage is required, and users never need to

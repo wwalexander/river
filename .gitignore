@@ -1,0 +1,7 @@
+# Executables
+river
+river.exe
+# DLLs for running on Windows
+*.dll
+# Test file
+sintel.flac

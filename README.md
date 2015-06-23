@@ -42,10 +42,10 @@ Goals
     libraries.
 *   River should integrate with existing music libraries. River should convert
     source files to streaming-friendly formats like Ogg Opus or MP3 on-the-fly,
-	or stream them directly if the files are already in one of these formats.
-	If on-the-fly conversion proves to be impractical, River should create
-	streaming-friendly encodes of files, and synchronize additions, deletions,
-	and metadata changes with the source library.
+    or stream them directly if the files are already in one of these formats.
+    If on-the-fly conversion proves to be impractical, River should create
+    streaming-friendly encodes of files, and synchronize additions, deletions,
+    and metadata changes with the source library.
 *   River should have a simple, extensible API for accessing and modifying the
     library. This API should make creating a frontend straightforward and easy.
 *   River should include a reference browser-based frontend with a simple UI.
@@ -54,14 +54,14 @@ Goals
 *   River should be entirely free and open source software.
 *   River should be easy to use for anyone. It will likely require a small
     amount of mandatory configuration (e.g. the location of the source library
-	and the port to listen on), but it should have sane defaults. New
-	users should be able to simply run the program and perform any configuration
-	through the frontend UI. Configuration should also be possible by directly
-	editing a configuration file. Configuration options should include:
+    and the port to listen on), but it should have sane defaults. New
+    users should be able to simply run the program and perform any configuration
+    through the frontend UI. Configuration should also be possible by directly
+    editing a configuration file. Configuration options should include:
 
-	* The location of the source library
-	* The port to listen on
-	* The quality/compression level of streaming files
+    * The location of the source library
+    * The port to listen on
+    * The quality/compression level of streaming files
 
 I'm using Go because:
 

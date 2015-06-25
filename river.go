@@ -2,9 +2,12 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
+	"net/http"
+	"path"
 )
 
 // #cgo LDFLAGS: -lavformat -lavutil
@@ -12,46 +15,50 @@ import (
 // #include "libavformat/avformat.h"
 import "C"
 
-type tag struct {
-	name string
-	value string
-}
-
-type file struct {
-	fmtCtx *C.AVFormatContext
-}
-
-func open(name string) (f file, err error) {
+func readTags(name string) (tags map[string]string, err error) {
 	var fmtCtx *C.AVFormatContext
-	if ret := C.avformat_open_input(&fmtCtx, C.CString(name), nil, nil); ret != 0 {
-		return file{}, errors.New("C.avformat_open_input")
+	if C.avformat_open_input(&fmtCtx, C.CString(name), nil, nil) != 0 {
+		return nil, errors.New("C.avformat_open_input")
 	}
-	return file{fmtCtx: fmtCtx}, nil
-}
-
-func (f file) close() {
-	C.avformat_close_input(&f.fmtCtx)
-}
-
-func (f file) readTags() (tags map[string]string) {
 	emptyCString := C.CString("")
 	tags = make(map[string]string)
-	for i := C.av_dict_get(f.fmtCtx.metadata, emptyCString, nil, C.AV_DICT_IGNORE_SUFFIX);
+	for i := C.av_dict_get(fmtCtx.metadata, emptyCString, nil, C.AV_DICT_IGNORE_SUFFIX);
 		i != nil;
-		i = C.av_dict_get(f.fmtCtx.metadata, emptyCString, i, C.AV_DICT_IGNORE_SUFFIX) {
+		i = C.av_dict_get(fmtCtx.metadata, emptyCString, i, C.AV_DICT_IGNORE_SUFFIX) {
 		tags[C.GoString(i.key)] = C.GoString(i.value)
 	}
+	C.avformat_close_input(&fmtCtx)
 	return
 }
 
+var (
+	library = flag.String("library", "", "the path to the library directory")
+	port    = flag.Uint("port", 8080, "the port to listen on")
+)
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	fis, err := ioutil.ReadDir(*library)
+	if err != nil {
+		fmt.Fprintln(w, "Error reading files")
+		return
+	}
+	for _, fi := range fis {
+		name := fi.Name()
+		tags, err := readTags(path.Join(*library, name))
+		if err != nil {
+			fmt.Fprintf(w, "%s [%s]\n", name, err)
+		} else {
+			fmt.Fprintln(w, tags)
+		}
+	}
+}
+
 func main() {
-	if len(os.Args) != 2 {
-		log.Fatal("no filename provided")
+	flag.Parse()
+	if *library == "" {
+		log.Fatal("no library path specified")
 	}
 	C.av_register_all()
-	file, err := open(os.Args[1])
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(file.readTags())
+	http.HandleFunc("/", handler)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 }

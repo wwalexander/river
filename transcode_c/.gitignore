@@ -1,0 +1,9 @@
+# Executables
+transcode
+transcode.exe
+# DLLs for running on Windows
+*.dll
+# Data files
+sintel.flac
+sintel.opus
+sintel.mp3

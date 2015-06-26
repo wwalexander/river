@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"unsafe"
 )
 
 // #cgo LDFLAGS: -lavformat -lavutil
@@ -15,17 +16,26 @@ import (
 // #include <libavformat/avformat.h>
 import "C"
 
+func readAVDictionary(dict *C.AVDictionary, tags map[string]string) {
+	emptyCString := C.CString("")
+	for tag := C.av_dict_get(dict, emptyCString, nil, C.AV_DICT_IGNORE_SUFFIX);
+		tag != nil;
+		tag = C.av_dict_get(dict, emptyCString, tag, C.AV_DICT_IGNORE_SUFFIX) {
+		tags[C.GoString(tag.key)] = C.GoString(tag.value)
+	}
+}
+
 func readTags(name string) (tags map[string]string, err error) {
 	var fmtCtx *C.AVFormatContext
 	if C.avformat_open_input(&fmtCtx, C.CString(name), nil, nil) != 0 {
 		return nil, errors.New("C.avformat_open_input")
 	}
-	emptyCString := C.CString("")
 	tags = make(map[string]string)
-	for i := C.av_dict_get(fmtCtx.metadata, emptyCString, nil, C.AV_DICT_IGNORE_SUFFIX);
-		i != nil;
-		i = C.av_dict_get(fmtCtx.metadata, emptyCString, i, C.AV_DICT_IGNORE_SUFFIX) {
-		tags[C.GoString(i.key)] = C.GoString(i.value)
+	readAVDictionary(fmtCtx.metadata, tags)
+	stream := uintptr(unsafe.Pointer(fmtCtx.streams))
+	for i := 0; i < int(fmtCtx.nb_streams); i++ {
+		readAVDictionary((*(**C.AVStream)(unsafe.Pointer(stream))).metadata, tags)
+		stream += uintptr(i)
 	}
 	C.avformat_close_input(&fmtCtx)
 	return
@@ -48,7 +58,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Fprintf(w, "%s [%s]\n", name, err)
 		} else {
-			fmt.Fprintln(w, tags)
+			fmt.Fprintf(w, "%s - %s\n", tags["ARTIST"], tags["TITLE"])
 		}
 	}
 }

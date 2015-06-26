@@ -32,10 +32,10 @@ func readTags(name string) (tags map[string]string, err error) {
 	}
 	tags = make(map[string]string)
 	readAVDictionary(fmtCtx.metadata, tags)
-	stream := uintptr(unsafe.Pointer(fmtCtx.streams))
+	streamPtr := uintptr(unsafe.Pointer(fmtCtx.streams))
 	for i := 0; i < int(fmtCtx.nb_streams); i++ {
-		readAVDictionary((*(**C.AVStream)(unsafe.Pointer(stream))).metadata, tags)
-		stream += uintptr(i)
+		readAVDictionary((*(**C.AVStream)(unsafe.Pointer(streamPtr))).metadata, tags)
+		streamPtr += uintptr(i)
 	}
 	C.avformat_close_input(&fmtCtx)
 	return

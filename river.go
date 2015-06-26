@@ -11,8 +11,8 @@ import (
 )
 
 // #cgo LDFLAGS: -lavformat -lavutil
-// #include "libavutil/dict.h"
-// #include "libavformat/avformat.h"
+// #include <libavutil/dict.h>
+// #include <libavformat/avformat.h>
 import "C"
 
 func readTags(name string) (tags map[string]string, err error) {

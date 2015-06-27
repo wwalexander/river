@@ -112,11 +112,6 @@ func main() {
 	if err := findAVCmds(); err != nil {
 		log.Fatal(err)
 	}
-	tags, err := readTags("sintel.opus")
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Fatal(tags)
 	http.HandleFunc("/", handler)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 }

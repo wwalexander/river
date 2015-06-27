@@ -2,33 +2,88 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os/exec"
-	"path"
 )
 
-var avConvCmd string
-var avProbeCmd string
+type river struct {
+	library  string
+	port uint16
+	convCmd  string
+	probeCmd string
+}
 
-func readTagsJSON(tags map[string]string, container map[string]interface{}) {
+func chooseCmd(a string, b string) (string, error) {
+	if _, err := exec.LookPath(a); err != nil {
+		if _, err := exec.LookPath(b); err != nil {
+			return "", fmt.Errorf("could not find %s or %s executable", a, b)
+		}
+		return b, nil
+	}
+	return a, nil
+}
+
+func newRiver(library string, port uint16) (r *river, err error) {
+	r = &river{library: library, port: port}
+	convCmd, err := chooseCmd("ffmpeg", "avconv")
+	if err != nil {
+		return nil, err
+	}
+	r.convCmd = convCmd
+	probeCmd, err := chooseCmd("ffprobe", "avprobe")
+	if err != nil {
+		return nil, err
+	}
+	r.probeCmd = probeCmd
+	return r, nil
+}
+
+type song struct {
+	tags map[string]string
+}
+
+func (s *song) readTags(container map[string]interface{}) {
 	tagsRaw, ok := container["tags"]
 	if !ok {
 		return
 	}
 	for key, value := range tagsRaw.(map[string]interface{}) {
-		tags[key] = value.(string)
+		s.tags[key] = value.(string)
 	}
 }
 
-func readTags(name string) (tags map[string]string, err error) {
-	cmd := exec.Command(avProbeCmd, "-print_format", "json", "-show_format", name)
+func (r *river) newSong(name string) (s *song, err error) {
+	cmd := exec.Command(r.probeCmd, "-print_format", "json", "-show_streams", name)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		return
+	}
+	if err = cmd.Start(); err != nil {
+		return
+	}
+	var streams struct {
+		Streams []map[string]interface{}
+	}
+	if err = json.NewDecoder(stdout).Decode(&streams); err != nil {
+		return
+	}
+	if err = cmd.Wait(); err != nil {
+		return
+	}
+	audio := false
+	for _, stream := range streams.Streams {
+		if stream["codec_type"] == "audio" {
+			audio = true
+			break
+		}
+	}
+	if !audio {
+		return nil, fmt.Errorf("'%s' does not contain an audio stream", name)
+	}
+	cmd = exec.Command(r.probeCmd, "-print_format", "json", "-show_format", name)
+	if stdout, err = cmd.StdoutPipe(); err != nil {
 		return
 	}
 	if err = cmd.Start(); err != nil {
@@ -43,64 +98,12 @@ func readTags(name string) (tags map[string]string, err error) {
 	if err = cmd.Wait(); err != nil {
 		return
 	}
-	tags = make(map[string]string)
-	readTagsJSON(tags, format.Format)
-	cmd = exec.Command(avProbeCmd, "-print_format", "json", "-show_streams", name)
-	if stdout, err = cmd.StdoutPipe(); err != nil {
-		return
-	}
-	if err = cmd.Start(); err != nil {
-		return
-	}
-	var streams struct {
-		Streams []map[string]interface{}
-	}
-	if err = json.NewDecoder(stdout).Decode(&streams); err != nil {
-		return
-	}
+	s = &song{tags: make(map[string]string)}
+	s.readTags(format.Format)
 	for _, stream := range streams.Streams {
-		readTagsJSON(tags, stream)
+		s.readTags(stream)
 	}
 	return
-}
-
-func findAVCmds() error {
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		if _, err := exec.LookPath("avconv"); err != nil {
-			return errors.New("could not find ffmpeg or avconv executable")
-		}
-		avConvCmd = "avconv"
-	} else {
-		avConvCmd = "ffmpeg"
-	}
-	if _, err := exec.LookPath("ffprobe"); err != nil {
-		if _, err := exec.LookPath("avprobe"); err != nil {
-			return errors.New("could not find ffprobe or avprobe executable")
-		}
-		avProbeCmd = "avprobe"
-	} else {
-		avProbeCmd = "ffprobe"
-	}
-	return nil
-}
-
-var library string
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	fis, err := ioutil.ReadDir(library)
-	if err != nil {
-		fmt.Fprintln(w, "Error reading files")
-		return
-	}
-	for _, fi := range fis {
-		name := fi.Name()
-		tags, err := readTags(path.Join(library, name))
-		if err != nil {
-			fmt.Fprintf(w, "%s [%s]\n", name, err)
-		} else {
-			fmt.Fprintf(w, "%s - %s\n", tags["ARTIST"], tags["TITLE"])
-		}
-	}
 }
 
 func main() {
@@ -110,11 +113,8 @@ func main() {
 	if *flagLibrary == "" {
 		log.Fatal("no library path specified")
 	}
-	library = *flagLibrary
-	fmt.Println("")
-	if err := findAVCmds(); err != nil {
+	_, err := newRiver(*flagLibrary, uint16(*flagPort))
+	if err != nil {
 		log.Fatal(err)
 	}
-	http.HandleFunc("/", handler)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *flagPort), nil))
 }

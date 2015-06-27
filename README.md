@@ -69,32 +69,10 @@ I'm using Go because:
     simultaneous users.
 *   The standard library has a very complete and useful HTTP package.
 *   It can run C code natively, which will be necessary for transcoding and
-    reading metadata from audio files using FFmpeg/Libav.
 
-Building on Windows
--------------------
+Running
+-------
 
-*   Download and run the
-    [MinGW installer](http://sourceforge.net/projects/mingw/files/latest/download?source=files).
-*   Mark `mingw32-base` for installation, then select Installation > Apply
-    Changes.
-*   Download and install [7-Zip](http://www.7-zip.org/).
-*   Download the [Zeranoe FFmpeg dev build](http://ffmpeg.zeranoe.com/builds/)
-    for your target architecture.
-*   Extract the build using 7-Zip.
-*   Copy the contents of `include` to a MinGW include directory (e.g.
-    `C:\MinGW\include`).
-*   Copy the contents of `lib` to a MinGW library directory (e.g.
-    `C:\MinGW\lib`).
-*   Run `go build`.
+River calls `ffmpeg`/`avconv` and `ffprobe`\`avprobe` to transcode and audio files. If your operating system has a package manager, look for a package called `ffmpeg` or `libav-tools` and install it. Otherwise, download an FFmpeg build from [the official website](https://www.ffmpeg.org/download.html), and either copy the `ffmpeg` and `ffprobe` executables to this directory, somewhere in your system's PATH, or add the location of the executables to your system's PATH. Windows and OS X releases should come with the executables bundled.
 
-Running on Windows
-------------------
-
-*   Download and install [7-Zip](http://www.7-zip.org/).
-*   Download the [Zeranoe FFmpeg shared build](http://ffmpeg.zeranoe.com/builds/)
-    for your target architecture.
-*   Extract the build using 7-zip.
-*   Copy the `.dll` files inside `bin` to the root of this repository.
-    Releases of River should have these files bundled.
-*   Run `river`.
+Hopefully, in the future, River will call `libav*` directly rather than running executables.

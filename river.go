@@ -1,50 +1,92 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os/exec"
 	"path"
-	"unsafe"
 )
 
-// #cgo LDFLAGS: -lavformat -lavutil
-// #include <libavutil/dict.h>
-// #include <libavformat/avformat.h>
-import "C"
+var avConvCmd string
+var avProbeCmd string
 
-func readAVDictionary(dict *C.AVDictionary, tags map[string]string) {
-	emptyCString := C.CString("")
-	for tag := C.av_dict_get(dict, emptyCString, nil, C.AV_DICT_IGNORE_SUFFIX);
-		tag != nil;
-		tag = C.av_dict_get(dict, emptyCString, tag, C.AV_DICT_IGNORE_SUFFIX) {
-		tags[C.GoString(tag.key)] = C.GoString(tag.value)
+func readTagsJSON(tags map[string]string, container map[string]interface{}) {
+	tagsRaw, ok := container["tags"]
+	if !ok {
+		return
+	}
+	for key, value := range tagsRaw.(map[string]interface{}) {
+		tags[key] = value.(string)
 	}
 }
 
 func readTags(name string) (tags map[string]string, err error) {
-	var fmtCtx *C.AVFormatContext
-	if C.avformat_open_input(&fmtCtx, C.CString(name), nil, nil) != 0 {
-		return nil, errors.New("C.avformat_open_input")
+	cmd := exec.Command(avProbeCmd, "-print_format", "json", "-show_format", name)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return
+	}
+	if err = cmd.Start(); err != nil {
+		return
+	}
+	var format struct {
+		Format map[string]interface{}
+	}
+	if err = json.NewDecoder(stdout).Decode(&format); err != nil {
+		return
+	}
+	if err = cmd.Wait(); err != nil {
+		return
 	}
 	tags = make(map[string]string)
-	readAVDictionary(fmtCtx.metadata, tags)
-	streamPtr := uintptr(unsafe.Pointer(fmtCtx.streams))
-	for i := 0; i < int(fmtCtx.nb_streams); i++ {
-		readAVDictionary((*(**C.AVStream)(unsafe.Pointer(streamPtr))).metadata, tags)
-		streamPtr += uintptr(i)
+	readTagsJSON(tags, format.Format)
+	cmd = exec.Command(avProbeCmd, "-print_format", "json", "-show_streams", name)
+	if stdout, err = cmd.StdoutPipe(); err != nil {
+		return
 	}
-	C.avformat_close_input(&fmtCtx)
+	if err = cmd.Start(); err != nil {
+		return
+	}
+	var streams struct {
+		Streams []map[string]interface{}
+	}
+	if err = json.NewDecoder(stdout).Decode(&streams); err != nil {
+		return
+	}
+	for _, stream := range streams.Streams {
+		readTagsJSON(tags, stream)
+	}
 	return
 }
 
-var (
-	library = flag.String("library", "", "the path to the library directory")
-	port    = flag.Uint("port", 8080, "the port to listen on")
-)
+func findAVCmds() error {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		if _, err := exec.LookPath("avconv"); err != nil {
+			return errors.New("could not find ffmpeg or avconv executable")
+		} else {
+			avConvCmd = "avconv"
+		}
+	} else {
+		avConvCmd = "ffmpeg"
+	}
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		if _,err := exec.LookPath("avprobe"); err != nil {
+			return errors.New("could not find ffprobe or avprobe executable")
+		} else {
+			avProbeCmd = "avprobe"
+		}
+	} else {
+		avProbeCmd = "ffprobe"
+	}
+	return nil
+}
+
+var library = flag.String("library", "", "the path to the library directory")
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	fis, err := ioutil.ReadDir(*library)
@@ -64,11 +106,19 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	var port = flag.Uint("port", 8080, "the port to listen on")
 	flag.Parse()
 	if *library == "" {
 		log.Fatal("no library path specified")
 	}
-	C.av_register_all()
+	if err := findAVCmds(); err != nil {
+		log.Fatal(err)
+	}
+	tags, err := readTags("sintel.opus")
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Fatal(tags)
 	http.HandleFunc("/", handler)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 }

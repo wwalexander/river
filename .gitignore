@@ -1,5 +1,6 @@
 # Executables
 river
 river.exe
-# DLLs for running on Windows
-*.dll
+# FFmpeg executables for Windows
+ffmpeg.exe
+ffprobe.exe

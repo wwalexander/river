@@ -19,7 +19,7 @@ song
 "uuid": "[uuid]"
 "path": "[path to file in library]",
 "tags": {
-	"[key]": "value",
+	"[key]": "[value]",
 	...
 }
 ```

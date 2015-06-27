@@ -68,11 +68,11 @@ I'm using Go because:
 *   It has good concurrency, which will be good for dealing with multiple
     simultaneous users.
 *   The standard library has a very complete and useful HTTP package.
-*   It can run C code natively, which will be necessary for transcoding and
+*   It can run C code natively, which will be necessary for transcoding and reading audio files using `libav*`.
 
 Running
 -------
 
-River calls `ffmpeg`/`avconv` and `ffprobe`/`avprobe` to transcode and audio files. If your operating system has a package manager, look for a package called `ffmpeg` or `libav-tools` and install it. Otherwise, download an FFmpeg build from [the official website](https://www.ffmpeg.org/download.html), and either copy the `ffmpeg` and `ffprobe` executables to this directory, somewhere in your system's PATH, or add the location of the executables to your system's PATH. Windows and OS X releases should come with the executables bundled.
+River calls `ffmpeg`/`avconv` and `ffprobe`/`avprobe` to transcode and reading audio files. If your operating system has a package manager, look for a package called `ffmpeg` or `libav-tools` and install it. Otherwise, download an FFmpeg build from [the official website](https://www.ffmpeg.org/download.html), and either copy the `ffmpeg` and `ffprobe` executables to this directory, somewhere in your system's PATH, or add the location of the executables to your system's PATH. Windows and OS X releases should come with the executables bundled.
 
 Hopefully, in the future, River will call `libav*` directly rather than running executables.

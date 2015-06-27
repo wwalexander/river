@@ -84,17 +84,17 @@ func findAVCmds() error {
 	return nil
 }
 
-var library = flag.String("library", "", "the path to the library directory")
+var library string
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	fis, err := ioutil.ReadDir(*library)
+	fis, err := ioutil.ReadDir(library)
 	if err != nil {
 		fmt.Fprintln(w, "Error reading files")
 		return
 	}
 	for _, fi := range fis {
 		name := fi.Name()
-		tags, err := readTags(path.Join(*library, name))
+		tags, err := readTags(path.Join(library, name))
 		if err != nil {
 			fmt.Fprintf(w, "%s [%s]\n", name, err)
 		} else {
@@ -104,14 +104,17 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	var port = flag.Uint("port", 8080, "the port to listen on")
+	var flagLibrary = flag.String("library", "", "the music library")
+	var flagPort = flag.Uint("port", 8080, "the port to listen on")
 	flag.Parse()
-	if *library == "" {
+	if *flagLibrary == "" {
 		log.Fatal("no library path specified")
 	}
+	library = *flagLibrary
+	fmt.Println("")
 	if err := findAVCmds(); err != nil {
 		log.Fatal(err)
 	}
 	http.HandleFunc("/", handler)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *flagPort), nil))
 }

@@ -8,7 +8,7 @@ Directory structure
 `/artists`: list of `artists` in library
 
 
-`/{songs,albums/artists}/uuid`: data corresponding to the `artist`/`album`/`song`'s UUID
+`/{songs,albums,artists}/uuid`: data corresponding to the `artist`/`album`/`song`'s UUID
 
 `/reload`: rescan library and rebuild database
 

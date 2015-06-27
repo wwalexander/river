@@ -75,7 +75,7 @@ func findAVCmds() error {
 		avConvCmd = "ffmpeg"
 	}
 	if _, err := exec.LookPath("ffprobe"); err != nil {
-		if _,err := exec.LookPath("avprobe"); err != nil {
+		if _, err := exec.LookPath("avprobe"); err != nil {
 			return errors.New("could not find ffprobe or avprobe executable")
 		} else {
 			avProbeCmd = "avprobe"

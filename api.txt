@@ -1,0 +1,31 @@
+Directory structure
+===================
+
+`/artists`: list of `artists` in library
+`/artists/[artist]`: list of `album`s by `artist`
+`/albums`: list of `albums` in library
+`/songs`: list of `song`s in library
+
+song
+----
+
+```json
+"uris": [
+	{
+		"uri": "[uuid].[extension]",
+		"type": "[MIME type]"
+	},
+	...	
+],
+"path": "[path to file in library]",
+"tags": {
+	"[key]": "value",
+	...
+}
+```
+
+album
+-----
+
+artist
+------

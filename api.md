@@ -1,13 +1,14 @@
 Directory structure
 ===================
 
-`/artists`: list of `artists` in library
-
-`/artists/[artist]`: list of `album`s by `artist`
+`/songs`: list of `song`s in library
 
 `/albums`: list of `albums` in library
 
-`/songs`: list of `song`s in library
+`/artists`: list of `artists` in library
+
+
+`/{songs,albums/artists}/uuid`: data corresponding to the `artist`/`album`/`song`'s UUID
 
 `/reload`: rescan library and rebuild database
 
@@ -15,13 +16,7 @@ song
 ----
 
 ```json
-"uris": [
-	{
-		"uri": "[uuid].[extension]",
-		"type": "[MIME type]"
-	},
-	...	
-],
+"uuid": "[uuid]"
 "path": "[path to file in library]",
 "tags": {
 	"[key]": "value",
@@ -33,7 +28,8 @@ album
 -----
 
 ```json
-"album": "[album name]",
+"name": "[album name]",
+"uuid": "[UUID]",
 "artist": "[artist]",
 "songs": [
 	...
@@ -44,7 +40,8 @@ artist
 ------
 
 ```json
-"artist": "[artist name]",
+"name": "[artist name]",
+"uuid": "[UUID]",
 "albums": [
 	...
 ],

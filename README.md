@@ -104,7 +104,9 @@ don't want to pay for a CA-signed certificate, you can generate your own using
 the `generate_cert` program from this repository. Specify the hostname you will
 be running River on using the `host` flag. For example, if you were running
 River on `river.mywebsite.com`, you would run
-`go run generate_cert/generate_cert.go -host river.mywebsite.com`.
+`go run generate_cert/generate_cert.go -host river.mywebsite.com`. This would
+create `cert.pem` and `key.pem` in the root of this repository, requiring no
+further configuration.
 
 `port` [`21313`]: the port to listen on
 

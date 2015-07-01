@@ -6,3 +6,6 @@ ffmpeg.exe
 ffprobe.exe
 # Database file
 db.json
+# Key files
+cert.pem
+key.pem

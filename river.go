@@ -23,12 +23,14 @@ type song struct {
 
 type river struct {
 	Songs    map[string]*song `json:"songs"`
-	db       *os.File
-	library  string
-	port     uint16
+	Library  string           `json:"library"`
+	cert     string
+	key      string
 	convCmd  string
 	probeCmd string
+	db       *os.File
 	json     []byte
+	port     uint16
 }
 
 func chooseCmd(a string, b string) (string, error) {
@@ -52,7 +54,7 @@ func (s *song) readTags(container map[string]interface{}) {
 }
 
 func (r river) newSong(relPath string) (s *song, err error) {
-	absPath := path.Join(r.library, relPath)
+	absPath := path.Join(r.Library, relPath)
 	cmd := exec.Command(r.probeCmd,
 		"-print_format", "json",
 		"-show_streams",
@@ -121,7 +123,7 @@ func id() string {
 }
 
 func (r *river) readDir(relDir string) (err error) {
-	absDir := path.Join(r.library, relDir)
+	absDir := path.Join(r.Library, relDir)
 	fis, err := ioutil.ReadDir(absDir)
 	if err != nil {
 		return
@@ -143,8 +145,27 @@ func (r *river) readDir(relDir string) (err error) {
 	return
 }
 
-func newRiver(library string, port uint16) (r *river, err error) {
-	r = &river{library: library, port: port}
+func (r *river) readLibrary() (err error) {
+	log.Println("reading songs into database")
+	r.Songs = make(map[string]*song)
+	if err = r.readDir(""); err != nil {
+		return
+	}
+	db, err := os.OpenFile("db.json", os.O_CREATE|os.O_TRUNC, 0200)
+	if err != nil {
+		return
+	}
+	defer db.Close()
+	err = json.NewEncoder(db).Encode(r)
+	return
+}
+
+func newRiver(library string, port uint16, cert string, key string) (r *river, err error) {
+	r = &river{
+		port: port,
+		cert: cert,
+		key: key,
+	}
 	convCmd, err := chooseCmd("ffmpeg", "avconv")
 	if err != nil {
 		return nil, err
@@ -157,19 +178,8 @@ func newRiver(library string, port uint16) (r *river, err error) {
 	r.probeCmd = probeCmd
 	dbPath := "db.json"
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		log.Println("reading songs into database")
-		r.Songs = make(map[string]*song)
-		if err = r.readDir(""); err != nil {
-			return nil, err
-		}
-		db, err := os.OpenFile(dbPath, os.O_CREATE, 0200)
-		if err != nil {
-			return nil, err
-		}
-		defer db.Close()
-		if err = json.NewEncoder(db).Encode(r); err != nil {
-			return nil, err
-		}
+		r.Library = library
+		r.readLibrary()
 	} else {
 		db, err := os.Open(dbPath)
 		if err != nil {
@@ -178,6 +188,10 @@ func newRiver(library string, port uint16) (r *river, err error) {
 		defer db.Close()
 		if err = json.NewDecoder(db).Decode(r); err != nil {
 			return nil, err
+		}
+		if r.Library != library {
+			r.Library = library
+			r.readLibrary()
 		}
 	}
 	return
@@ -229,7 +243,7 @@ func (songh songHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cmd := exec.Command(songh.convCmd,
-		"-i", path.Join(songh.library, song.Path),
+		"-i", path.Join(songh.Library, song.Path),
 		"-c", codec,
 		qFlag, quality,
 		"-f", format, "-")
@@ -255,17 +269,23 @@ func (songh songHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (r river) serve() {
 	http.Handle("/songs", songsHandler{r})
 	http.Handle("/songs/", songHandler{r})
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", r.port), nil))
+	log.Println("ready")
+	log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%d", r.port),
+		r.cert,
+		r.key,
+		nil))
 }
 
 func main() {
 	var flagLibrary = flag.String("library", "", "the music library")
 	var flagPort = flag.Uint("port", 21313, "the port to listen on")
+	var flagCert = flag.String("cert", "cert.pem", "the TLS certificate to use")
+	var flagKey = flag.String("key", "key.pem", "the TLS key to use")
 	flag.Parse()
 	if *flagLibrary == "" {
 		log.Fatal("no library path specified")
 	}
-	r, err := newRiver(*flagLibrary, uint16(*flagPort))
+	r, err := newRiver(*flagLibrary, uint16(*flagPort), *flagCert, *flagKey)
 	if err != nil {
 		log.Fatal(err)
 	}

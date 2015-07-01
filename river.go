@@ -7,11 +7,11 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"os/exec"
-	"path"
 	"math/rand"
 	"net/http"
 	"os"
+	"os/exec"
+	"path"
 	"strings"
 	"time"
 )
@@ -156,7 +156,7 @@ func newRiver(library string, port uint16) (r *river, err error) {
 	}
 	r.probeCmd = probeCmd
 	dbPath := "db.json"
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {	
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		log.Println("reading songs into database")
 		r.Songs = make(map[string]*song)
 		if err = r.readDir(""); err != nil {

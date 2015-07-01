@@ -83,3 +83,10 @@ PATH. Windows and OS X releases should come with the executables bundled.
 
 Hopefully, in the future, River will call `libav*` directly rather than running
 executables.
+
+River requires the location of the music library to be specified with the `-library` flag.
+
+River requires a TLS certificate and key in order to run. By default, the
+program looks for `cert.pem` and `key.pem`, but you can specify a different location using the `-cert` and `-key` flags.
+
+River runs on port 21313 by default. To change the port, use the `-port` flag.

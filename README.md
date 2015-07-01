@@ -87,6 +87,8 @@ executables.
 River requires the location of the music library to be specified with the `-library` flag.
 
 River requires a TLS certificate and key in order to run. By default, the
-program looks for `cert.pem` and `key.pem`, but you can specify a different location using the `-cert` and `-key` flags.
+program looks for `cert.pem` and `key.pem`, but you can specify a different
+location using the `-cert` and `-key` flags. If you don't want to pay for a
+CA-signed certificate, you can [generate your own](https://stackoverflow.com/questions/10175812/how-to-create-a-self-signed-certificate-with-openssl#answer-10176685), then import the certificate into your web browsers to disable security warnings.
 
 River runs on port 21313 by default. To change the port, use the `-port` flag.

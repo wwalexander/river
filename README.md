@@ -93,7 +93,7 @@ River has the following options (listed here in the form
 
 `library`: the music library to read from
 
-`pass`: the password used to log in to the server
+`password`: the password used to log in to the server
 
 `cert` [`cert.pem`]: the TLS certificate to use
 

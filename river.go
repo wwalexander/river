@@ -4,15 +4,27 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os/exec"
+	"path"
+	"math/rand"
+	"net/http"
+	"time"
 )
 
+type song struct {
+	Path string            `json:"path"`
+	Tags map[string]string `json:"tags"`
+}
+
 type river struct {
+	Songs    map[string]*song `json:"songs"`
 	library  string
-	port uint16
+	port     uint16
 	convCmd  string
 	probeCmd string
+	json     []byte
 }
 
 func chooseCmd(a string, b string) (string, error) {
@@ -25,37 +37,19 @@ func chooseCmd(a string, b string) (string, error) {
 	return a, nil
 }
 
-func newRiver(library string, port uint16) (r *river, err error) {
-	r = &river{library: library, port: port}
-	convCmd, err := chooseCmd("ffmpeg", "avconv")
-	if err != nil {
-		return nil, err
-	}
-	r.convCmd = convCmd
-	probeCmd, err := chooseCmd("ffprobe", "avprobe")
-	if err != nil {
-		return nil, err
-	}
-	r.probeCmd = probeCmd
-	return r, nil
-}
-
-type song struct {
-	tags map[string]string
-}
-
 func (s *song) readTags(container map[string]interface{}) {
 	tagsRaw, ok := container["tags"]
 	if !ok {
 		return
 	}
 	for key, value := range tagsRaw.(map[string]interface{}) {
-		s.tags[key] = value.(string)
+		s.Tags[key] = value.(string)
 	}
 }
 
-func (r *river) newSong(name string) (s *song, err error) {
-	cmd := exec.Command(r.probeCmd, "-print_format", "json", "-show_streams", name)
+func (r river) newSong(relPath string) (s *song, err error) {
+	absPath := path.Join(r.library, relPath)
+	cmd := exec.Command(r.probeCmd, "-print_format", "json", "-show_streams", absPath)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return
@@ -80,9 +74,9 @@ func (r *river) newSong(name string) (s *song, err error) {
 		}
 	}
 	if !audio {
-		return nil, fmt.Errorf("'%s' does not contain an audio stream", name)
+		return nil, fmt.Errorf("'%s' does not contain an audio stream", relPath)
 	}
-	cmd = exec.Command(r.probeCmd, "-print_format", "json", "-show_format", name)
+	cmd = exec.Command(r.probeCmd, "-print_format", "json", "-show_format", absPath)
 	if stdout, err = cmd.StdoutPipe(); err != nil {
 		return
 	}
@@ -98,12 +92,81 @@ func (r *river) newSong(name string) (s *song, err error) {
 	if err = cmd.Wait(); err != nil {
 		return
 	}
-	s = &song{tags: make(map[string]string)}
+	s = &song{Path: relPath, Tags: make(map[string]string)}
 	s.readTags(format.Format)
 	for _, stream := range streams.Streams {
 		s.readTags(stream)
 	}
 	return
+}
+
+func id() string {
+	letters := []byte("abcdefghijklmnopqrstuvwxyz")
+	rand.Seed(time.Now().UnixNano())
+	idBytes := make([]byte, 0, 8)
+	for i := 0; i < cap(idBytes); i++ {
+		idBytes = append(idBytes, letters[rand.Intn(len(letters))])
+	}
+	return string(idBytes)
+}
+
+func (r *river) readDir(relDir string) (err error) {
+	absDir := path.Join(r.library, relDir)
+	fis, err := ioutil.ReadDir(absDir)
+	if err != nil {
+		return
+	}
+	for _, fi := range fis {
+		relPath := path.Join(relDir, fi.Name())
+		if fi.IsDir() {
+			if err = r.readDir(relPath); err != nil {
+				return
+			}
+		} else {
+			s, err := r.newSong(relPath)
+			if err != nil {
+				continue
+			}
+			r.Songs[id()] = s
+		}
+	}
+	return
+}
+
+func newRiver(library string, port uint16) (r *river, err error) {
+	r = &river{library: library, port: port}
+	convCmd, err := chooseCmd("ffmpeg", "avconv")
+	if err != nil {
+		return nil, err
+	}
+	r.convCmd = convCmd
+	probeCmd, err := chooseCmd("ffprobe", "avprobe")
+	if err != nil {
+		return nil, err
+	}
+	r.probeCmd = probeCmd
+	r.Songs = make(map[string]*song)
+	if err = r.readDir(""); err != nil {
+		return nil, err
+	}
+	return
+}
+
+type songsHandler struct {
+	river
+}
+
+func (sh songsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := json.NewEncoder(w).Encode(sh); err != nil {
+		http.Error(w, "unable to encode song list", 500)
+		return
+	}
+}
+
+
+func (r river) serve() {
+	http.Handle("/songs", songsHandler{r})
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", r.port), nil))
 }
 
 func main() {
@@ -113,8 +176,9 @@ func main() {
 	if *flagLibrary == "" {
 		log.Fatal("no library path specified")
 	}
-	_, err := newRiver(*flagLibrary, uint16(*flagPort))
+	r, err := newRiver(*flagLibrary, uint16(*flagPort))
 	if err != nil {
 		log.Fatal(err)
 	}
+	r.serve()
 }

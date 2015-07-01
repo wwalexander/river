@@ -11,6 +11,7 @@ import (
 	"path"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -22,6 +23,7 @@ type song struct {
 
 type river struct {
 	Songs    map[string]*song `json:"songs"`
+	db       *os.File
 	library  string
 	port     uint16
 	convCmd  string
@@ -51,7 +53,10 @@ func (s *song) readTags(container map[string]interface{}) {
 
 func (r river) newSong(relPath string) (s *song, err error) {
 	absPath := path.Join(r.library, relPath)
-	cmd := exec.Command(r.probeCmd, "-print_format", "json", "-show_streams", absPath)
+	cmd := exec.Command(r.probeCmd,
+		"-print_format", "json",
+		"-show_streams",
+		absPath)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return
@@ -78,7 +83,10 @@ func (r river) newSong(relPath string) (s *song, err error) {
 	if !audio {
 		return nil, fmt.Errorf("'%s' does not contain an audio stream", relPath)
 	}
-	cmd = exec.Command(r.probeCmd, "-print_format", "json", "-show_format", absPath)
+	cmd = exec.Command(r.probeCmd,
+		"-print_format", "json",
+		"-show_format",
+		absPath)
 	if stdout, err = cmd.StdoutPipe(); err != nil {
 		return
 	}
@@ -147,9 +155,29 @@ func newRiver(library string, port uint16) (r *river, err error) {
 		return nil, err
 	}
 	r.probeCmd = probeCmd
-	r.Songs = make(map[string]*song)
-	if err = r.readDir(""); err != nil {
-		return nil, err
+	dbPath := "db.json"
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {	
+		r.Songs = make(map[string]*song)
+		if err = r.readDir(""); err != nil {
+			return nil, err
+		}
+		db, err := os.OpenFile(dbPath, os.O_CREATE, 0200)
+		if err != nil {
+			return nil, err
+		}
+		defer db.Close()
+		if err = json.NewEncoder(db).Encode(r); err != nil {
+			return nil, err
+		}
+	} else {
+		db, err := os.Open(dbPath)
+		if err != nil {
+			return nil, err
+		}
+		defer db.Close()
+		if err = json.NewDecoder(db).Decode(r); err != nil {
+			return nil, err
+		}
 	}
 	return
 }
@@ -199,7 +227,11 @@ func (songh songHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported file extension", 403)
 		return
 	}
-	cmd := exec.Command(songh.convCmd, "-i", path.Join(songh.library, song.Path), "-c", codec, qFlag, quality, "-f", format, "-")
+	cmd := exec.Command(songh.convCmd,
+		"-i", path.Join(songh.library, song.Path),
+		"-c", codec,
+		qFlag, quality,
+		"-f", format, "-")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		http.Error(w, "unable to pipe output from encoder", 500)

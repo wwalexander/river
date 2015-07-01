@@ -4,3 +4,5 @@ river.exe
 # FFmpeg executables for Windows
 ffmpeg.exe
 ffprobe.exe
+# Database file
+db.json

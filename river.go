@@ -159,6 +159,7 @@ type songsHandler struct {
 }
 
 func (songsh songsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if err := json.NewEncoder(w).Encode(songsh); err != nil {
 		http.Error(w, "unable to encode song list", 500)
 		return

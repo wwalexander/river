@@ -226,7 +226,7 @@ func (r river) serve() {
 
 func main() {
 	var flagLibrary = flag.String("library", "", "the music library")
-	var flagPort = flag.Uint("port", 8080, "the port to listen on")
+	var flagPort = flag.Uint("port", 21313, "the port to listen on")
 	flag.Parse()
 	if *flagLibrary == "" {
 		log.Fatal("no library path specified")

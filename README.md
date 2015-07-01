@@ -73,6 +73,8 @@ I'm using Go because:
 Running
 -------
 
+### FFmpeg/LibAV
+
 River calls `ffmpeg`/`avconv` and `ffprobe`/`avprobe` to transcode and read
 audio files. If your operating system has a package manager, look for a package
 called `ffmpeg` or `libav-tools` and install it. Otherwise, download an FFmpeg
@@ -84,11 +86,24 @@ PATH. Windows and OS X releases should come with the executables bundled.
 Hopefully, in the future, River will call `libav*` directly rather than running
 executables.
 
+### Library path
+
 River requires the location of the music library to be specified with the `-library` flag.
+
+### TLS
 
 River requires a TLS certificate and key in order to run. By default, the
 program looks for `cert.pem` and `key.pem`, but you can specify a different
 location using the `-cert` and `-key` flags. If you don't want to pay for a
-CA-signed certificate, you can [generate your own](https://stackoverflow.com/questions/10175812/how-to-create-a-self-signed-certificate-with-openssl#answer-10176685), then import the certificate into your web browsers to disable security warnings.
+CA-signed certificate, you can generate your own using the `generate_cert`
+program from this repository. Specify the hostname you will be hosting River on
+using the `--host flag`, e.g. `river.mywebsite.com`:
+
+`go run generate_cert/generate_cert.go --host river.mywebsite.com`
+
+Import the certificate (`cert.pem`) into your web browsers to disable security
+warnings.
+
+### Port
 
 River runs on port 21313 by default. To change the port, use the `-port` flag.

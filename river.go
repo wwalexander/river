@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os/exec"
 	"path"
 	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -156,16 +158,69 @@ type songsHandler struct {
 	river
 }
 
-func (sh songsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := json.NewEncoder(w).Encode(sh); err != nil {
+func (songsh songsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := json.NewEncoder(w).Encode(songsh); err != nil {
 		http.Error(w, "unable to encode song list", 500)
 		return
 	}
 }
 
+type songHandler struct {
+	river
+}
+
+func (songh songHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	base := path.Base(r.URL.Path)
+	ext := path.Ext(base)
+	song, ok := songh.Songs[strings.TrimSuffix(base, ext)]
+	if !ok {
+		http.Error(w, "file not found", 404)
+		return
+	}
+	var codec string
+	var qFlag string
+	var quality string
+	var format string
+	switch ext {
+	case ".opus":
+		codec = "opus"
+		qFlag = "-compression_level"
+		quality = "10"
+		format = "opus"
+		break
+	case ".mp3":
+		codec = "libmp3lame"
+		qFlag = "-q"
+		quality = "0"
+		format = "mp3"
+		break
+	default:
+		http.Error(w, "unsupported file extension", 403)
+		return
+	}
+	cmd := exec.Command(songh.convCmd, "-i", path.Join(songh.library, song.Path), "-c", codec, qFlag, quality, "-f", format, "-")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		http.Error(w, "unable to pipe output from encoder", 500)
+		return
+	}
+	if err = cmd.Start(); err != nil {
+		http.Error(w, "unable to start encoding file", 500)
+		return
+	}
+	if _, err = io.Copy(w, stdout); err != nil {
+		http.Error(w, "unable to stream file", 500)
+		return
+	}
+	if err = cmd.Wait(); err != nil {
+		http.Error(w, "error while encoding file", 500)
+		return
+	}
+}
 
 func (r river) serve() {
 	http.Handle("/songs", songsHandler{r})
+	http.Handle("/songs/", songHandler{r})
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", r.port), nil))
 }
 

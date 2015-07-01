@@ -88,7 +88,8 @@ executables.
 
 ### Configuration
 
-River has the following options:
+River has the following options (listed here in the form
+`option` [`default`]: description):
 
 `library`: the music library to read from
 
@@ -106,6 +107,7 @@ River on `river.mywebsite.com`, you would run
 `go run generate_cert/generate_cert.go -host river.mywebsite.com`.
 
 `port` [`21313`]: the port to listen on
+
 `config` [`config.json`]: the configuration file
 
 All of River's options can be specified in the configuration file, and the

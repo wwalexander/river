@@ -86,24 +86,28 @@ PATH. Windows and OS X releases should come with the executables bundled.
 Hopefully, in the future, River will call `libav*` directly rather than running
 executables.
 
-### Library path
+### Configuration
 
-River requires the location of the music library to be specified with the `-library` flag.
+River has the following options:
 
-### TLS
+`library`: the music library to read from
 
-River requires a TLS certificate and key in order to run. By default, the
-program looks for `cert.pem` and `key.pem`, but you can specify a different
-location using the `-cert` and `-key` flags. If you don't want to pay for a
-CA-signed certificate, you can generate your own using the `generate_cert`
-program from this repository. Specify the hostname you will be hosting River on
-using the `--host flag`, e.g. `river.mywebsite.com`:
+`pass`: the password used to log in to the server
 
-`go run generate_cert/generate_cert.go --host river.mywebsite.com`
+`cert` [`cert.pem`]: the TLS certificate to use
 
-Import the certificate (`cert.pem`) into your web browsers to disable security
-warnings.
+`key` [`key.pem`]: the TLS key to use
 
-### Port
+TLS encryption is necessary in order to transmit the password safely. If you
+don't want to pay for a CA-signed certificate, you can generate your own using
+the `generate_cert` program from this repository. Specify the hostname you will
+be running River on using the `host` flag. For example, if you were running
+River on `river.mywebsite.com`, you would run
+`go run generate_cert/generate_cert.go -host river.mywebsite.com`.
 
-River runs on port 21313 by default. To change the port, use the `-port` flag.
+`port` [`21313`]: the port to listen on
+`config` [`config.json`]: the configuration file
+
+All of River's options can be specified in the configuration file, and the
+password can be specified only in the configuration file. The configuration file
+should contain a JSON object with keys mapping to River options.

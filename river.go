@@ -24,13 +24,12 @@ type song struct {
 type river struct {
 	Songs    map[string]*song `json:"songs"`
 	Library  string           `json:"library"`
-	cert     string
-	key      string
+	pass string
+	cert string
+	key string
+	port uint16
 	convCmd  string
 	probeCmd string
-	db       *os.File
-	json     []byte
-	port     uint16
 }
 
 func chooseCmd(a string, b string) (string, error) {
@@ -160,11 +159,19 @@ func (r *river) readLibrary() (err error) {
 	return
 }
 
-func newRiver(library string, port uint16, cert string, key string) (r *river, err error) {
+type config struct {
+	Library  string `json:"library"`
+	Pass     string `json:"pass"`
+	Cert     string	`json:"cert"`
+	Key      string	`json:"key"`
+	Port     uint16	`json:"port"`
+}
+
+func newRiver(c *config) (r *river, err error) {
 	r = &river{
-		port: port,
-		cert: cert,
-		key: key,
+		cert: c.Cert,
+		key: c.Key,
+		port: c.Port,
 	}
 	convCmd, err := chooseCmd("ffmpeg", "avconv")
 	if err != nil {
@@ -178,7 +185,7 @@ func newRiver(library string, port uint16, cert string, key string) (r *river, e
 	r.probeCmd = probeCmd
 	dbPath := "db.json"
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		r.Library = library
+		r.Library = c.Library
 		r.readLibrary()
 	} else {
 		db, err := os.Open(dbPath)
@@ -189,8 +196,8 @@ func newRiver(library string, port uint16, cert string, key string) (r *river, e
 		if err = json.NewDecoder(db).Decode(r); err != nil {
 			return nil, err
 		}
-		if r.Library != library {
-			r.Library = library
+		if r.Library != c.Library {
+			r.Library = c.Library
 			r.readLibrary()
 		}
 	}
@@ -277,15 +284,36 @@ func (r river) serve() {
 }
 
 func main() {
-	var flagLibrary = flag.String("library", "", "the music library")
-	var flagPort = flag.Uint("port", 21313, "the port to listen on")
-	var flagCert = flag.String("cert", "cert.pem", "the TLS certificate to use")
-	var flagKey = flag.String("key", "key.pem", "the TLS key to use")
+	flagConfig := flag.String("config", "config.json", "the configuration file")
+	flagLibrary := flag.String("library", "", "the music library")
+	flagCert := flag.String("cert", "cert.pem", "the TLS certificate to use")
+	flagKey := flag.String("key", "key.pem", "the TLS key to use")
+	flagPort := flag.Uint("port", 21313, "the port to listen on")
 	flag.Parse()
-	if *flagLibrary == "" {
-		log.Fatal("no library path specified")
+	configFile, err := os.Open(*flagConfig)
+	if err != nil {
+		log.Fatalf("unable to open '%s'\n", *flagConfig)
 	}
-	r, err := newRiver(*flagLibrary, uint16(*flagPort), *flagCert, *flagKey)
+	var c config
+	if err = json.NewDecoder(configFile).Decode(&c); err != nil {
+		log.Fatalf("unable to parse '%s': %v", *flagConfig, err)
+	}
+	if c.Pass == "" {
+		log.Fatalf("no password specified in %s\n", *flagConfig)
+	}
+	if c.Library == "" {
+		c.Library = *flagLibrary
+	}
+	if c.Cert == "" {
+		c.Cert = *flagCert
+	}
+	if c.Key == "" {
+		c.Key = *flagKey
+	}
+	if c.Port == 0 {
+		c.Port = uint16(*flagPort)
+	}
+	r, err := newRiver(&c)
 	if err != nil {
 		log.Fatal(err)
 	}

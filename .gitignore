@@ -4,6 +4,8 @@ river.exe
 # FFmpeg executables for Windows
 ffmpeg.exe
 ffprobe.exe
+# Configuration file
+config.json
 # Database file
 db.json
 # Key files

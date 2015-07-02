@@ -100,3 +100,10 @@ River has the following options (listed here in the form
 All of River's options can be specified in the configuration file, and the
 password can be specified only in the configuration file. The configuration file
 should contain a JSON object with keys mapping to River options.
+
+Usage
+-----
+
+A sample River frontend is hosted at william-alexander.github.io/river. Specify
+the server you wish to connect to using the `server` URL parameter, e.g.
+`http://william-alexander.github.io/river?server=river.mywebsite.com:21313`.

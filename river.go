@@ -17,6 +17,7 @@ import (
 )
 
 type song struct {
+	Id   string            `json:"id"`
 	Path string            `json:"path"`
 	Tags map[string]string `json:"tags"`
 }
@@ -101,7 +102,11 @@ func (r river) newSong(relPath string) (s *song, err error) {
 	if err = cmd.Wait(); err != nil {
 		return
 	}
-	s = &song{Path: relPath, Tags: make(map[string]string)}
+	s = &song{
+		Id:   id(),
+		Path: relPath,
+		Tags: make(map[string]string),
+	}
 	s.readTags(format.Format)
 	for _, stream := range streams.Streams {
 		s.readTags(stream)
@@ -136,7 +141,7 @@ func (r *river) readDir(relDir string) (err error) {
 			if err != nil {
 				continue
 			}
-			r.Songs[id()] = s
+			r.Songs[s.Id] = s
 		}
 	}
 	return
@@ -205,7 +210,7 @@ type songsHandler struct {
 
 func (songsh songsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	if err := json.NewEncoder(w).Encode(songsh); err != nil {
+	if err := json.NewEncoder(w).Encode(songsh.Songs); err != nil {
 		http.Error(w, "unable to encode song list", 500)
 		return
 	}

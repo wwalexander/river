@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -204,26 +204,18 @@ func newRiver(c *config) (r *river, err error) {
 	return
 }
 
-type songsHandler struct {
-	river
-}
-
-func (songsh songsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (ri river) serveSongs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	if err := json.NewEncoder(w).Encode(songsh.Songs); err != nil {
+	if err := json.NewEncoder(w).Encode(ri.Songs); err != nil {
 		http.Error(w, "unable to encode song list", 500)
 		return
 	}
 }
 
-type songHandler struct {
-	river
-}
-
-func (songh songHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 	base := path.Base(r.URL.Path)
 	ext := path.Ext(base)
-	song, ok := songh.Songs[strings.TrimSuffix(base, ext)]
+	song, ok := ri.Songs[strings.TrimSuffix(base, ext)]
 	if !ok {
 		http.Error(w, "file not found", 404)
 		return
@@ -249,11 +241,12 @@ func (songh songHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported file extension", 403)
 		return
 	}
-	cmd := exec.Command(songh.convCmd,
-		"-i", path.Join(songh.Library, song.Path),
+	cmd := exec.Command(ri.convCmd,
+		"-i", path.Join(ri.Library, song.Path),
 		"-c", codec,
 		qFlag, quality,
-		"-f", format, "-")
+		"-f", format,
+		"-")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		http.Error(w, "unable to pipe output from encoder", 500)
@@ -263,19 +256,29 @@ func (songh songHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unable to start encoding file", 500)
 		return
 	}
-	if _, err = io.Copy(w, stdout); err != nil {
-		http.Error(w, "unable to stream file", 500)
+	b, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		http.Error(w, "error reading encoded file", 500)
 		return
 	}
 	if err = cmd.Wait(); err != nil {
-		http.Error(w, "error while encoding file", 500)
+		http.Error(w, "error encoding file", 500)
 		return
+	}
+	reader := bytes.NewReader(b)
+	http.ServeContent(w, r, "", time.Time{}, reader)
+}
+
+func (ri river) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" {
+		ri.serveSongs(w, r)
+	} else {
+		ri.serveSong(w, r)
 	}
 }
 
 func (r river) serve() {
-	http.Handle("/songs", songsHandler{r})
-	http.Handle("/songs/", songHandler{r})
+	http.Handle("/", r)
 	log.Println("ready")
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", r.port), nil))
 }
@@ -292,9 +295,6 @@ func main() {
 	var c config
 	if err = json.NewDecoder(configFile).Decode(&c); err != nil {
 		log.Fatalf("unable to parse '%s': %v", *flagConfig, err)
-	}
-	if c.Password == "" {
-		log.Fatalf("no password specified in %s\n", *flagConfig)
 	}
 	if c.Library == "" {
 		c.Library = *flagLibrary

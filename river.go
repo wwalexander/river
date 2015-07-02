@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+const (
+	streamDir = "stream"
+)
+
 type song struct {
 	Id   string            `json:"id"`
 	Path string            `json:"path"`
@@ -158,6 +162,15 @@ func (r *river) readLibrary() (err error) {
 	}
 	defer db.Close()
 	err = json.NewEncoder(db).Encode(r)
+	fis, err := ioutil.ReadDir(streamDir)
+	if err != nil {
+		return
+	}
+	for _, fi := range fis {
+		if err = os.RemoveAll(path.Join(streamDir, fi.Name())); err != nil {
+			return
+		}
+	}
 	return
 }
 
@@ -169,6 +182,7 @@ type config struct {
 
 func newRiver(c *config) (r *river, err error) {
 	r = &river{
+		Library: c.Library,
 		password: c.Password,
 		port: c.Port,
 	}
@@ -185,7 +199,9 @@ func newRiver(c *config) (r *river, err error) {
 	dbPath := "db.json"
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		r.Library = c.Library
-		r.readLibrary()
+		if err = r.readLibrary(); err != nil {
+			return nil, err
+		}
 	} else {
 		db, err := os.Open(dbPath)
 		if err != nil {
@@ -197,7 +213,9 @@ func newRiver(c *config) (r *river, err error) {
 		}
 		if r.Library != c.Library {
 			r.Library = c.Library
-			r.readLibrary()
+			if err = r.readLibrary(); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return
@@ -283,10 +301,10 @@ func main() {
 	if err = json.NewDecoder(configFile).Decode(&c); err != nil {
 		log.Fatalf("unable to parse '%s': %v", *flagConfig, err)
 	}
-	if c.Library == "" {
+	if *flagLibrary != "" {
 		c.Library = *flagLibrary
 	}
-	if c.Port == 0 {
+	if *flagPort != 0 {
 		c.Port = uint16(*flagPort)
 	}
 	r, err := newRiver(&c)

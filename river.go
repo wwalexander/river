@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -214,59 +213,47 @@ func (ri river) serveSongs(w http.ResponseWriter, r *http.Request) {
 
 func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 	base := path.Base(r.URL.Path)
-	ext := path.Ext(base)
-	song, ok := ri.Songs[strings.TrimSuffix(base, ext)]
-	if !ok {
-		http.Error(w, "file not found", 404)
-		return
+	stream := path.Join("stream", base)
+	if _, err := os.Stat(stream); os.IsNotExist(err) {
+		ext := path.Ext(base)
+		song, ok := ri.Songs[strings.TrimSuffix(base, ext)]
+		if !ok {
+			http.Error(w, "file not found", 404)
+			return
+		}
+		var codec string
+		var qFlag string
+		var quality string
+		var format string
+		switch ext {
+		case ".opus":
+			codec = "opus"
+			qFlag = "-compression_level"
+			quality = "0"
+			format = "opus"
+			break
+		case ".mp3":
+			codec = "libmp3lame"
+			qFlag = "-q"
+			quality = "6"
+			format = "mp3"
+			break
+		default:
+			http.Error(w, "unsupported file extension", 403)
+			return
+		}
+		cmd := exec.Command(ri.convCmd,
+			"-i", path.Join(ri.Library, song.Path),
+			"-c", codec,
+			qFlag, quality,
+			"-f", format,
+			stream)
+		if err := cmd.Run(); err != nil {
+			http.Error(w, "error encoding file", 500)
+			return
+		}
 	}
-	var codec string
-	var qFlag string
-	var quality string
-	var format string
-	switch ext {
-	case ".opus":
-		codec = "opus"
-		qFlag = "-compression_level"
-		quality = "10"
-		format = "opus"
-		break
-	case ".mp3":
-		codec = "libmp3lame"
-		qFlag = "-q"
-		quality = "0"
-		format = "mp3"
-		break
-	default:
-		http.Error(w, "unsupported file extension", 403)
-		return
-	}
-	cmd := exec.Command(ri.convCmd,
-		"-i", path.Join(ri.Library, song.Path),
-		"-c", codec,
-		qFlag, quality,
-		"-f", format,
-		"-")
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		http.Error(w, "unable to pipe output from encoder", 500)
-		return
-	}
-	if err = cmd.Start(); err != nil {
-		http.Error(w, "unable to start encoding file", 500)
-		return
-	}
-	b, err := ioutil.ReadAll(stdout)
-	if err != nil {
-		http.Error(w, "error reading encoded file", 500)
-		return
-	}
-	if err = cmd.Wait(); err != nil {
-		http.Error(w, "error encoding file", 500)
-		return
-	}
-	reader := bytes.NewReader(b)
-	http.ServeContent(w, r, "", time.Time{}, reader)
+	http.ServeFile(w, r, stream)
 }
 
 func (ri river) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -25,8 +25,6 @@ type river struct {
 	Songs    map[string]*song `json:"songs"`
 	Library  string           `json:"library"`
 	password string
-	cert     string
-	key      string
 	port     uint16
 	convCmd  string
 	probeCmd string
@@ -162,16 +160,12 @@ func (r *river) readLibrary() (err error) {
 type config struct {
 	Library  string `json:"library"`
 	Password string `json:"pass"`
-	Cert     string	`json:"cert"`
-	Key      string	`json:"key"`
 	Port     uint16	`json:"port"`
 }
 
 func newRiver(c *config) (r *river, err error) {
 	r = &river{
 		password: c.Password,
-		cert: c.Cert,
-		key: c.Key,
 		port: c.Port,
 	}
 	convCmd, err := chooseCmd("ffmpeg", "avconv")
@@ -205,23 +199,11 @@ func newRiver(c *config) (r *river, err error) {
 	return
 }
 
-func (ri river) auth(w http.ResponseWriter, r *http.Request) bool {
-	_, password, ok := r.BasicAuth()
-	if !ok || password != ri.password {
-		http.Error(w, "incorrect or missing password", 403)
-		return false
-	}
-	return true
-}
-
 type songsHandler struct {
 	river
 }
 
 func (songsh songsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !songsh.auth(w, r) {
-		return
-	}
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if err := json.NewEncoder(w).Encode(songsh); err != nil {
 		http.Error(w, "unable to encode song list", 500)
@@ -234,9 +216,6 @@ type songHandler struct {
 }
 
 func (songh songHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !songh.auth(w, r) {
-		return
-	}
 	base := path.Base(r.URL.Path)
 	ext := path.Ext(base)
 	song, ok := songh.Songs[strings.TrimSuffix(base, ext)]
@@ -293,17 +272,12 @@ func (r river) serve() {
 	http.Handle("/songs", songsHandler{r})
 	http.Handle("/songs/", songHandler{r})
 	log.Println("ready")
-	log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%d", r.port),
-		r.cert,
-		r.key,
-		nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", r.port), nil))
 }
 
 func main() {
 	flagConfig := flag.String("config", "config.json", "the configuration file")
 	flagLibrary := flag.String("library", "", "the music library")
-	flagCert := flag.String("cert", "cert.pem", "the TLS certificate to use")
-	flagKey := flag.String("key", "key.pem", "the TLS key to use")
 	flagPort := flag.Uint("port", 21313, "the port to listen on")
 	flag.Parse()
 	configFile, err := os.Open(*flagConfig)
@@ -319,12 +293,6 @@ func main() {
 	}
 	if c.Library == "" {
 		c.Library = *flagLibrary
-	}
-	if c.Cert == "" {
-		c.Cert = *flagCert
-	}
-	if c.Key == "" {
-		c.Key = *flagKey
 	}
 	if c.Port == 0 {
 		c.Port = uint16(*flagPort)

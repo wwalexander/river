@@ -93,21 +93,6 @@ River has the following options (listed here in the form
 
 `library`: the music library to read from
 
-`password`: the password used to log in to the server
-
-`cert` [`cert.pem`]: the TLS certificate to use
-
-`key` [`key.pem`]: the TLS key to use
-
-TLS encryption is necessary in order to transmit the password safely. If you
-don't want to pay for a CA-signed certificate, you can generate your own using
-the `generate_cert` program from this repository. Specify the hostname you will
-be running River on using the `host` flag. For example, if you were running
-River on `river.mywebsite.com`, you would run
-`go run generate_cert/generate_cert.go -host river.mywebsite.com`. This would
-create `cert.pem` and `key.pem` in the root of this repository, requiring no
-further configuration.
-
 `port` [`21313`]: the port to listen on
 
 `config` [`config.json`]: the configuration file

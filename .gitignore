@@ -8,6 +8,3 @@ ffprobe.exe
 config.json
 # Database file
 db.json
-# Key files
-cert.pem
-key.pem

@@ -243,17 +243,19 @@ func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 		var qFlag string
 		var quality string
 		var format string
+		var bitrate string = "0"
 		switch ext {
 		case ".opus":
 			codec = "opus"
 			qFlag = "-compression_level"
-			quality = "0"
+			quality = "10"
 			format = "opus"
+			bitrate = "128000"
 			break
 		case ".mp3":
 			codec = "libmp3lame"
 			qFlag = "-q"
-			quality = "6"
+			quality = "0"
 			format = "mp3"
 			break
 		default:
@@ -264,6 +266,7 @@ func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 			"-i", path.Join(ri.Library, song.Path),
 			"-c", codec,
 			qFlag, quality,
+			"-b:a", bitrate,
 			"-f", format,
 			stream)
 		if err := cmd.Run(); err != nil {

@@ -19,6 +19,8 @@ const (
 	streamDir = "stream"
 )
 
+var transcoded map[string]bool = make(map[string]bool)
+
 type song struct {
 	Id   string            `json:"id"`
 	Path string            `json:"path"`
@@ -231,10 +233,11 @@ func (ri river) serveSongs(w http.ResponseWriter, r *http.Request) {
 
 func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 	base := path.Base(r.URL.Path)
+	ext := path.Ext(base)
+	id := strings.TrimSuffix(base, ext)
 	stream := path.Join("stream", base)
-	if _, err := os.Stat(stream); os.IsNotExist(err) {
-		ext := path.Ext(base)
-		song, ok := ri.Songs[strings.TrimSuffix(base, ext)]
+	if !transcoded[id] {
+		song, ok := ri.Songs[id]
 		if !ok {
 			http.Error(w, "file not found", 404)
 			return
@@ -273,6 +276,7 @@ func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error encoding file", 500)
 			return
 		}
+		transcoded[id] = true
 	}
 	http.ServeFile(w, r, stream)
 }

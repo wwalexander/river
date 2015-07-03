@@ -12,14 +12,13 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	streamDir = "stream"
 )
-
-var transcoded map[string]bool = make(map[string]bool)
 
 type song struct {
 	Id   string            `json:"id"`
@@ -28,12 +27,13 @@ type song struct {
 }
 
 type river struct {
-	Songs    map[string]*song `json:"songs"`
-	Library  string           `json:"library"`
-	password string
-	port     uint16
-	convCmd  string
-	probeCmd string
+	Songs       map[string]*song `json:"songs"`
+	Library     string           `json:"library"`
+	password    string
+	port        uint16
+	convCmd     string
+	probeCmd    string
+	transcoding map[string]sync.WaitGroup
 }
 
 func chooseCmd(a string, b string) (string, error) {
@@ -187,8 +187,9 @@ func newRiver(c *config) (r *river, err error) {
 		Library: c.Library,
 		password: c.Password,
 		port: c.Port,
+		transcoding: make(map[string]sync.WaitGroup),
 	}
-	convCmd, err := chooseCmd("ffmpeg", "avconv")
+convCmd, err := chooseCmd("ffmpeg", "avconv")
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +237,19 @@ func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 	ext := path.Ext(base)
 	id := strings.TrimSuffix(base, ext)
 	stream := path.Join("stream", base)
-	if !transcoded[id] {
+	_, err := os.Stat(stream)
+	if err != nil && !os.IsNotExist(err) {
+		http.Error(w, "error looking for cached file", 500)
+		return
+	}
+	var newWg sync.WaitGroup
+	wg, ok := ri.transcoding[stream]
+	if !ok {
+		ri.transcoding[stream] = newWg
+	}
+	if os.IsNotExist(err) {
+		wg.Add(1)
+		defer wg.Done()
 		song, ok := ri.Songs[id]
 		if !ok {
 			http.Error(w, "file not found", 404)
@@ -276,7 +289,8 @@ func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "error encoding file", 500)
 			return
 		}
-		transcoded[id] = true
+	} else {
+		wg.Wait()
 	}
 	http.ServeFile(w, r, stream)
 }

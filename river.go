@@ -248,7 +248,6 @@ func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 		ri.transcoding[stream] = newWg
 	}
 	if os.IsNotExist(err) {
-		fmt.Println("transcoding")
 		wg.Add(1)
 		defer wg.Done()
 		song, ok := ri.Songs[id]

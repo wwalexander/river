@@ -248,6 +248,7 @@ func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 		ri.transcoding[stream] = newWg
 	}
 	if os.IsNotExist(err) {
+		fmt.Println("transcoding")
 		wg.Add(1)
 		defer wg.Done()
 		song, ok := ri.Songs[id]
@@ -255,36 +256,33 @@ func (ri river) serveSong(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "file not found", 404)
 			return
 		}
-		var codec string
-		var qFlag string
-		var quality string
-		var format string
-		var bitrate string = "0"
+		args := []string{
+			"-i", path.Join(ri.Library, song.Path),
+		}
 		switch ext {
 		case ".opus":
-			codec = "opus"
-			qFlag = "-compression_level"
-			quality = "10"
-			format = "opus"
-			bitrate = "128000"
+			args = append(args, []string{
+				"-c",                 "opus",
+				"-b:a",               "128000",
+				"-compression_level", "0",
+				"-f",                 "opus",
+				stream,
+			}...)
 			break
 		case ".mp3":
-			codec = "libmp3lame"
-			qFlag = "-q"
-			quality = "0"
-			format = "mp3"
+			args = append(args, []string{
+				"-c", "libmp3lame",
+				"-q", "4",
+				"-f", "mp3",
+				stream,
+			}...)
 			break
 		default:
 			http.Error(w, "unsupported file extension", 403)
 			return
 		}
 		cmd := exec.Command(ri.convCmd,
-			"-i", path.Join(ri.Library, song.Path),
-			"-c", codec,
-			qFlag, quality,
-			"-b:a", bitrate,
-			"-f", format,
-			stream)
+			args...)
 		if err := cmd.Run(); err != nil {
 			http.Error(w, "error encoding file", 500)
 			return

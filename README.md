@@ -100,3 +100,7 @@ River has the following options (listed here in the form
 All of River's options can be specified in the configuration file, and the
 password can be specified only in the configuration file. The configuration file
 should contain a JSON object with keys mapping to River options.
+
+### Usage
+
+An example client can be found [here](https://github.com/william-alexander/river-client).

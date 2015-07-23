@@ -68,9 +68,6 @@ type song struct {
 	Path string `json:"path"`
 	// Tag represents the key-value metadata tags of the song.
 	Tags map[string]string `json:"tags"`
-	// encoding is used to delay stream operations while a streaming file
-	// for the song is encoding. Keys are format names.
-	encoding map[string]*sync.WaitGroup
 }
 
 func (s song) tag(key string) (tag string, ok bool) {
@@ -160,12 +157,15 @@ type library struct {
 	convCmd string
 	// probeCmd is the command used to read metadata tags from source files.
 	probeCmd string
-	// reading is used to delay write operations while read operations are
-	// occuring.
+	// reading is used to delay database write operations while read
+	// operations are occuring.
 	reading sync.WaitGroup
-	// writing is used to delay operations while a write operation is
-	// occuring.
+	// writing is used to delay database read operations while a write
+	// operation is occuring.
 	writing sync.WaitGroup
+	// encoding is used to delay stream operations while a streaming file
+	// for the song is encoding. Keys are file paths.
+	encoding map[string]*sync.WaitGroup
 	// songRE is a regular expression used to match song URLs.
 	songRE *regexp.Regexp
 	// streamRE is a regular expression used to match stream URLs.
@@ -236,9 +236,8 @@ func (l library) newSong(path string) (s *song, err error) {
 		return
 	}
 	s = &song{
-		Path:     path,
-		Tags:     make(map[string]string),
-		encoding: make(map[string]*sync.WaitGroup),
+		Path: path,
+		Tags: make(map[string]string),
 	}
 	if sOld, ok := l.Songs[s.Path]; ok {
 		s.ID = sOld.ID
@@ -320,7 +319,8 @@ func chooseCmd(a string, b string) (string, error) {
 
 func newLibrary(path string) (l *library, err error) {
 	l = &library{
-		path: path,
+		path:     path,
+		encoding: make(map[string]*sync.WaitGroup),
 	}
 	convCmd, err := chooseCmd("ffmpeg", "avconv")
 	if err != nil {
@@ -389,11 +389,12 @@ func (l library) getSong(w http.ResponseWriter, r *http.Request) {
 }
 
 func (l library) encode(dest string, src *song, af afmt) (err error) {
-	if _, ok := src.encoding[af.fmt]; !ok {
-		src.encoding[af.fmt] = &sync.WaitGroup{}
+	if _, ok := l.encoding[dest]; !ok {
+		l.encoding[dest] = &sync.WaitGroup{}
 	}
-	src.encoding[af.fmt].Add(1)
-	defer src.encoding[af.fmt].Done()
+	encoding := l.encoding[dest]
+	encoding.Add(1)
+	defer encoding.Done()
 	args := []string{
 		"-i", src.Path,
 		"-f", af.fmt,
@@ -421,10 +422,10 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound)
 		return
 	}
-	if _, ok = s.encoding[af.fmt]; ok {
-		s.encoding[af.fmt].Wait()
-	}
 	streamPath := path.Join(streamDirPath, base)
+	if _, ok := l.encoding[streamPath]; ok {
+		l.encoding[streamPath].Wait()
+	}
 	_, err := os.Stat(streamPath)
 	if err != nil && !os.IsNotExist(err) {
 		httpError(w, http.StatusInternalServerError)

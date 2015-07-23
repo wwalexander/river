@@ -1,19 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"container/heap"
-	crand "crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
+	"crypto/rand"
 	"encoding/json"
-	"encoding/pem"
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"math/big"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -23,45 +17,42 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 const (
-	certPath      = ".cert.pem"
-	keyPath       = ".key.pem"
 	dbPath        = ".db.json"
 	streamDirPath = ".stream"
 )
 
 const (
-	idLeastByte    int = 'a'
-	idGreatestByte int = 'z'
-	idLength           = 8
+	idLeastByte    = 'a'
+	idGreatestByte = 'z'
+	idLength       = 8
 )
 
-// codec represents an audio codec supported by ffmpeg/avconv.
+// afmt represents an audio format supported by ffmpeg/avconv.
 type afmt struct {
 	// codec is the format's codec name in ffmpeg/avconv.
 	codec string
-	// ext is the file extension for the codec's container format.
-	ext string
+	// fmt is the format's name in ffmpeg/avconv.
+	fmt string
 	// args are the codec-specific ffmpeg/avconv arguments to use.
 	args []string
 }
 
 var (
 	afmts = map[string]afmt{
-		"opus": {
+		".opus": {
 			codec: "opus",
-			ext:   "mp3",
+			fmt:   "opus",
 			args: []string{
 				"-b:a", "128000",
 				"-compression_level", "0",
 			},
 		},
-		"mp3": {
+		".mp3": {
 			codec: "libmp3lame",
-			ext:   "mp3",
+			fmt:   "mp3",
 			args: []string{
 				"-q", "4",
 			},
@@ -78,8 +69,8 @@ type song struct {
 	// Tag represents the key-value metadata tags of the song.
 	Tags map[string]string `json:"tags"`
 	// encoding is used to delay stream operations while a streaming file
-	// for the song is encoding.
-	encoding sync.WaitGroup
+	// for the song is encoding. Keys are format names.
+	encoding map[string]*sync.WaitGroup
 }
 
 func (s song) tag(key string) (tag string, ok bool) {
@@ -158,15 +149,13 @@ type library struct {
 	// songs is the primary record of songs in the library. Keys are
 	// song.Paths, and values are songs.
 	Songs map[string]*song `json:"songs"`
-	// songsByID is like songs, but indexed by song.ID instead of song.Path.
-	SongsByID map[string]*song `json:"songsByID"`
-	// songsSorted is a list of songs in sorted order. Songs are sorted by
+	// SongsByID is like songs, but indexed by song.ID instead of song.Path.
+	SongsByID map[string]*song
+	// SongsSorted is a list of songs in sorted order. Songs are sorted by
 	// artist, then album, then track number.
-	SongsSorted []*song `json:"songsSorted"`
+	SongsSorted []*song
 	// path is the path to the library directory.
 	path string
-	// password is the password used to authenticate HTTP requests.
-	password string
 	// convCmd is the command used to transcode source files.
 	convCmd string
 	// probeCmd is the command used to read metadata tags from source files.
@@ -177,6 +166,8 @@ type library struct {
 	// writing is used to delay operations while a write operation is
 	// occuring.
 	writing sync.WaitGroup
+	// songRE is a regular expression used to match song URLs.
+	songRE *regexp.Regexp
 	// streamRE is a regular expression used to match stream URLs.
 	streamRE *regexp.Regexp
 }
@@ -245,17 +236,21 @@ func (l library) newSong(path string) (s *song, err error) {
 		return
 	}
 	s = &song{
-		Path: path,
-		Tags: make(map[string]string),
+		Path:     path,
+		Tags:     make(map[string]string),
+		encoding: make(map[string]*sync.WaitGroup),
 	}
-	if current, ok := l.Songs[path]; ok {
-		s.ID = current.ID
+	if sOld, ok := l.Songs[s.Path]; ok {
+		s.ID = sOld.ID
 	} else {
 		idBytes := make([]byte, 0, idLength)
 		for i := 0; i < cap(idBytes); i++ {
-			idByte := byte(rand.Intn(idGreatestByte-idLeastByte) +
-				idLeastByte)
-			idBytes = append(idBytes, idByte)
+			n, err := rand.Int(rand.Reader,
+				big.NewInt(int64(idGreatestByte-idLeastByte)))
+			if err != nil {
+				return nil, err
+			}
+			idBytes = append(idBytes, byte(n.Int64()+idLeastByte))
 		}
 		s.ID = string(idBytes)
 	}
@@ -290,6 +285,14 @@ func (l *library) reload() (err error) {
 	for h.Len() > 0 {
 		l.SongsSorted = append(l.SongsSorted, heap.Pop(h).(*song))
 	}
+	db, err := os.OpenFile(dbPath, os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return
+	}
+	defer db.Close()
+	if err = json.NewEncoder(db).Encode(l); err != nil {
+		return
+	}
 	filepath.Walk(streamDirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
@@ -301,12 +304,6 @@ func (l *library) reload() (err error) {
 		}
 		return nil
 	})
-	db, err := os.OpenFile(dbPath, os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	err = json.NewEncoder(db).Encode(l)
 	return
 }
 
@@ -321,18 +318,9 @@ func chooseCmd(a string, b string) (string, error) {
 	return "", fmt.Errorf("could not find '%s' or '%s' executable", a, b)
 }
 
-func newLibrary(path string, password string) (l *library, err error) {
+func newLibrary(path string) (l *library, err error) {
 	l = &library{
-		path:     path,
-		password: password,
-	}
-	db, err := os.Open(dbPath)
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-	if err = json.NewDecoder(db).Decode(l); err != nil {
-		return nil, err
+		path: path,
 	}
 	convCmd, err := chooseCmd("ffmpeg", "avconv")
 	if err != nil {
@@ -344,65 +332,30 @@ func newLibrary(path string, password string) (l *library, err error) {
 	}
 	l.convCmd = convCmd
 	l.probeCmd = probeCmd
-	streamRE, err := regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\/.+$",
+	songREPrefix := fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}",
 		idLeastByte,
 		idGreatestByte,
-		idLength))
+		idLength)
+	songRE, err := regexp.Compile(songREPrefix + "$")
+	if err != nil {
+		return nil, err
+	}
+	l.songRE = songRE
+	streamRE, err := regexp.Compile(songREPrefix + "\\..+$")
 	if err != nil {
 		return nil, err
 	}
 	l.streamRE = streamRE
 	os.Mkdir(streamDirPath, os.ModeDir)
-	l.reload()
-	return
-}
-
-func createKeys() (err error) {
-	_, certErr := os.Stat(certPath)
-	_, keyErr := os.Stat(keyPath)
-	if !os.IsNotExist(certErr) || !os.IsNotExist(keyErr) {
-		return
+	if db, err := os.Open(dbPath); err == nil {
+		defer db.Close()
+		if err = json.NewDecoder(db).Decode(l); err != nil {
+			return nil, err
+		}
+	} else {
+		l.Songs = make(map[string]*song)
+		l.reload()
 	}
-	serialNumber, err := crand.Int(crand.Reader, big.NewInt(math.MaxInt64))
-	if err != nil {
-		return
-	}
-	notBefore := time.Now()
-	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		NotBefore:    notBefore,
-		NotAfter:     notBefore.Add(365 * 24 * time.Hour),
-	}
-	priv, err := rsa.GenerateKey(crand.Reader, 2048)
-	if err != nil {
-		return
-	}
-	cert, err := x509.CreateCertificate(crand.Reader,
-		&template,
-		&template,
-		&priv.PublicKey,
-		priv)
-	if err != nil {
-		return
-	}
-	certOut, err := os.Create(certPath)
-	if err != nil {
-		return
-	}
-	if err = pem.Encode(certOut, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: cert,
-	}); err != nil {
-		return
-	}
-	keyOut, err := os.Create(keyPath)
-	if err != nil {
-		return
-	}
-	err = pem.Encode(keyOut, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(priv),
-	})
 	return
 }
 
@@ -436,16 +389,18 @@ func (l library) getSong(w http.ResponseWriter, r *http.Request) {
 }
 
 func (l library) encode(dest string, src *song, af afmt) (err error) {
-	src.encoding.Add(1)
-	defer src.encoding.Done()
+	if _, ok := src.encoding[af.fmt]; !ok {
+		src.encoding[af.fmt] = &sync.WaitGroup{}
+	}
+	src.encoding[af.fmt].Add(1)
+	defer src.encoding[af.fmt].Done()
 	args := []string{
 		"-i", src.Path,
-		"-f", af.ext,
+		"-f", af.fmt,
 	}
 	args = append(args, af.args...)
 	args = append(args, dest)
-	if out, err := exec.Command(l.convCmd, args...).CombinedOutput(); err != nil {
-		log.Println(string(out))
+	if err = exec.Command(l.convCmd, args...).Run(); err != nil {
 		if _, err = os.Stat(dest); err == nil {
 			os.Remove(dest)
 		}
@@ -454,18 +409,22 @@ func (l library) encode(dest string, src *song, af afmt) (err error) {
 }
 
 func (l library) getStream(w http.ResponseWriter, r *http.Request) {
-	s, ok := l.SongsByID[path.Base(path.Dir(r.URL.Path))]
+	base := path.Base(r.URL.Path)
+	ext := path.Ext(base)
+	s, ok := l.SongsByID[strings.TrimSuffix(base, ext)]
 	if !ok {
 		httpError(w, http.StatusNotFound)
 		return
 	}
-	ext := path.Base(r.URL.Path)
 	af, ok := afmts[ext]
 	if !ok {
 		httpError(w, http.StatusNotFound)
+		return
 	}
-	s.encoding.Wait()
-	streamPath := path.Join(streamDirPath, s.ID+"."+ext)
+	if _, ok = s.encoding[af.fmt]; ok {
+		s.encoding[af.fmt].Wait()
+	}
+	streamPath := path.Join(streamDirPath, base)
 	_, err := os.Stat(streamPath)
 	if err != nil && !os.IsNotExist(err) {
 		httpError(w, http.StatusInternalServerError)
@@ -479,11 +438,6 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	//_, password, ok := r.BasicAuth()
-	//if !ok || password != l.password {
-	//	httpError(w, http.StatusUnauthorized)
-	//	return
-	//}
 	switch {
 	case r.URL.Path == "/songs":
 		switch r.Method {
@@ -495,7 +449,7 @@ func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			httpError(w, http.StatusMethodNotAllowed)
 		}
-	case path.Dir(r.URL.Path) == "/songs":
+	case l.songRE.MatchString(r.URL.Path):
 		switch r.Method {
 		case "GET":
 			l.getSong(w, r)
@@ -517,35 +471,14 @@ func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flibrary := flag.String("library", "", "the library directory")
 	fport := flag.Uint("port", 21313, "the port to listen on")
-	fpwfile := flag.String("pwfile",
-		".password",
-		"the file containing the server password")
 	flag.Parse()
 	if *flibrary == "" {
 		log.Fatal("missing library flag")
 	}
-	pwFile, err := os.Open(*fpwfile)
+	l, err := newLibrary(*flibrary)
 	if err != nil {
-		log.Fatal(err)
-	}
-	defer pwFile.Close()
-	scanner := bufio.NewScanner(pwFile)
-	if !scanner.Scan() {
-		err = scanner.Err()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	l, err := newLibrary(*flibrary, scanner.Text())
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err = createKeys(); err != nil {
 		log.Fatal(err)
 	}
 	http.Handle("/", l)
-	log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(":%d", *fport),
-		certPath,
-		keyPath,
-		nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *fport), nil))
 }

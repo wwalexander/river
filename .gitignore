@@ -2,8 +2,5 @@ river
 river.exe
 ffmpeg.exe
 ffprobe.exe
-.db.json
-.password
-.cert.pem
-.key.pem
 .stream
+.db.json

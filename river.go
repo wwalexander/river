@@ -177,7 +177,7 @@ type library struct {
 	// operation is occuring.
 	writing sync.WaitGroup
 	// encoding is used to delay stream operations while a streaming file
-	// for the song is encoding. Keys are file paths.
+	// at the path represented by the key is encoding.
 	encoding map[string]*sync.WaitGroup
 	// songRE is a regular expression used to match song URLs.
 	songRE *regexp.Regexp

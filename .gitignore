@@ -1,10 +1,9 @@
-# Executables
 river
 river.exe
-# FFmpeg executables for Windows
 ffmpeg.exe
 ffprobe.exe
-# Configuration file
-config.json
-# Database file
-db.json
+.db.json
+.password
+.cert.pem
+.key.pem
+.stream

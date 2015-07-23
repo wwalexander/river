@@ -23,7 +23,7 @@ the command line.
 Running
 -------
 
-`river -library [path to library]`
+`river -library=[path to library]`
 
 ### FFmpeg/LibAV
 

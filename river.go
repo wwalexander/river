@@ -92,9 +92,14 @@ func (s song) album() (album string) {
 func (s song) track() (track string) {
 	track, ok := s.tag("track")
 	if ok {
-		return
+		return strings.SplitN(track, "/", 2)[0]
 	}
 	track, ok = s.tag("TRACKNUMBER")
+	return
+}
+
+func (s song) title() (title string) {
+	title, _ = s.tag("TITLE")
 	return
 }
 
@@ -117,12 +122,20 @@ func (h songHeap) Less(i, j int) bool {
 	}
 	iTrack, iErr := strconv.Atoi(h[i].track())
 	jTrack, jErr := strconv.Atoi(h[j].track())
-	if jErr != nil {
+	if iErr == nil && jErr != nil {
 		return true
-	} else if iErr != nil {
+	} else if iErr != nil && jErr == nil {
 		return false
 	}
-	return iTrack < jTrack
+	if iTrack != jTrack {
+		return iTrack < jTrack
+	}
+	iTitle := h[i].title()
+	jTitle := h[j].title()
+	if iTitle != jTitle {
+		return iTitle < jTitle
+	}
+	return h[i].Path < h[j].Path
 }
 
 func (h songHeap) Swap(i, j int) {

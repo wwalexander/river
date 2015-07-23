@@ -38,4 +38,5 @@ PATH. Windows and OS X releases should come with the executables bundled.
 ### Flags
 
 `-library`: the library directory
+
 `-port`: the port to listen on (defaults to 21313)

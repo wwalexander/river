@@ -131,10 +131,10 @@ type library struct {
 	// song.Paths, and values are songs.
 	Songs map[string]*song `json:"songs"`
 	// SongsByID is like songs, but indexed by song.ID instead of song.Path.
-	SongsByID map[string]*song
+	SongsByID map[string]*song `json:"songsByID"`
 	// SongsSorted is a list of songs in sorted order. Songs are sorted by
 	// artist, then album, then track number.
-	SongsSorted []*song
+	SongsSorted []*song `json:"songsSorted"`
 	// path is the path to the library directory.
 	path string
 	// convCmd is the command used to transcode source files.

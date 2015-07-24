@@ -36,6 +36,8 @@ type afmt struct {
 	codec string
 	// fmt is the format's name in ffmpeg/avconv.
 	fmt string
+	// mime is the MIME type of the format.
+	mime string
 	// args are the codec-specific ffmpeg/avconv arguments to use.
 	args []string
 }
@@ -45,6 +47,7 @@ var (
 		".opus": {
 			codec: "opus",
 			fmt:   "ogg",
+			mime:  "audio/ogg",
 			args: []string{
 				"-b:a", "128000",
 				"-compression_level", "0",
@@ -53,6 +56,7 @@ var (
 		".mp3": {
 			codec: "libmp3lame",
 			fmt:   "mp3",
+			mime:  "audio/mpeg",
 			args: []string{
 				"-q", "4",
 			},
@@ -443,6 +447,7 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound)
 		return
 	}
+	w.Header().Set("Content-Type", af.mime)
 	if af.fmt == s.Fmt && af.codec == s.Codec {
 		http.ServeFile(w, r, s.Path)
 		return

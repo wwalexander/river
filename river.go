@@ -378,7 +378,7 @@ func newLibrary(path string) (l *library, err error) {
 	return
 }
 
-func (l *library) putSongs(w http.ResponseWriter, r *http.Request) {
+func (l *library) putSongs() {
 	l.writing.Wait()
 	l.reading.Wait()
 	l.writing.Add(1)
@@ -386,7 +386,8 @@ func (l *library) putSongs(w http.ResponseWriter, r *http.Request) {
 	l.reload()
 }
 
-func (l library) getSongs(w http.ResponseWriter, r *http.Request) {
+func (l library) getSongs(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
 	l.writing.Wait()
 	l.reading.Add(1)
 	defer l.reading.Done()
@@ -404,6 +405,7 @@ func (l library) getSong(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(song)
 }
 
@@ -445,7 +447,6 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, s.Path)
 		return
 	}
-	log.Println("encoding")
 	streamPath := path.Join(streamDirPath, base)
 	if _, ok := l.encoding[streamPath]; ok {
 		l.encoding[streamPath].Wait()
@@ -467,10 +468,10 @@ func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/songs":
 		switch r.Method {
 		case "PUT":
-			l.putSongs(w, r)
+			l.putSongs()
 			fallthrough
 		case "GET":
-			l.getSongs(w, r)
+			l.getSongs(w)
 		default:
 			httpError(w, http.StatusMethodNotAllowed)
 		}

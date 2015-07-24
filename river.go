@@ -44,7 +44,7 @@ var (
 	afmts = map[string]afmt{
 		".opus": {
 			codec: "opus",
-			fmt:   "opus",
+			fmt:   "ogg",
 			args: []string{
 				"-b:a", "128000",
 				"-compression_level", "0",
@@ -66,6 +66,8 @@ type song struct {
 	ID string `json:"id"`
 	// Path is the path to the song's source file.
 	Path string `json:"path"`
+	// fmt is the song's format's name in ffmpeg/avconv.
+	Fmt string `json:"fmt"`
 	// Tag represents the key-value metadata tags of the song.
 	Tags map[string]string `json:"tags"`
 }
@@ -250,6 +252,7 @@ func (l library) newSong(path string) (s *song, err error) {
 	}
 	s = &song{
 		Path: path,
+		Fmt:  format.Format["format_name"].(string),
 		Tags: make(map[string]string),
 	}
 	if sOld, ok := l.Songs[s.Path]; ok {
@@ -425,14 +428,18 @@ func (l library) encode(dest string, src *song, af afmt) (err error) {
 func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 	base := path.Base(r.URL.Path)
 	ext := path.Ext(base)
+	af, ok := afmts[ext]
+	if !ok {
+		httpError(w, http.StatusNotFound)
+		return
+	}
 	s, ok := l.SongsByID[strings.TrimSuffix(base, ext)]
 	if !ok {
 		httpError(w, http.StatusNotFound)
 		return
 	}
-	af, ok := afmts[ext]
-	if !ok {
-		httpError(w, http.StatusNotFound)
+	if s.Fmt == af.fmt {
+		http.ServeFile(w, r, s.Path)
 		return
 	}
 	streamPath := path.Join(streamDirPath, base)

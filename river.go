@@ -66,6 +66,10 @@ type song struct {
 	ID string `json:"id"`
 	// Path is the path to the song's source file.
 	Path string `json:"path"`
+	// Fmt represents the song's format name in ffmpeg/avconv.
+	Fmt string `json:"fmt"`
+	// Codec represents the song's codec name in ffmpeg/avconv.
+	Codec string `json:"codec"`
 	// Tag represents the key-value metadata tags of the song.
 	Tags map[string]string `json:"tags"`
 }
@@ -156,7 +160,7 @@ func (h *songHeap) Pop() interface{} {
 
 // library represents a music library and server.
 type library struct {
-	// songs is the primary record of songs in the library. Keys are
+	// Songs is the primary record of songs in the library. Keys are
 	// song.Paths, and values are songs.
 	Songs map[string]*song `json:"songs"`
 	// SongsByID is like songs, but indexed by song.ID instead of song.Path.
@@ -216,9 +220,14 @@ func (l library) newSong(path string) (s *song, err error) {
 	if err = cmd.Wait(); err != nil {
 		return
 	}
+	s = &song{
+		Path: path,
+		Tags: make(map[string]string),
+	}
 	audio := false
 	for _, stream := range streams.Streams {
 		if stream["codec_type"] == "audio" {
+			s.Codec = stream["codec_name"].(string)
 			audio = true
 			break
 		}
@@ -227,6 +236,20 @@ func (l library) newSong(path string) (s *song, err error) {
 		return nil,
 			fmt.Errorf("'%s' does not contain an audio stream",
 				path)
+	}
+	if sOld, ok := l.Songs[s.Path]; ok {
+		s.ID = sOld.ID
+	} else {
+		idBytes := make([]byte, 0, idLength)
+		for i := 0; i < cap(idBytes); i++ {
+			n, err := rand.Int(rand.Reader,
+				big.NewInt(int64(idGreatestByte-idLeastByte)))
+			if err != nil {
+				return nil, err
+			}
+			idBytes = append(idBytes, byte(n.Int64()+idLeastByte))
+		}
+		s.ID = string(idBytes)
 	}
 	cmd = exec.Command(l.probeCmd,
 		"-print_format", "json",
@@ -248,24 +271,7 @@ func (l library) newSong(path string) (s *song, err error) {
 	if err = cmd.Wait(); err != nil {
 		return
 	}
-	s = &song{
-		Path: path,
-		Tags: make(map[string]string),
-	}
-	if sOld, ok := l.Songs[s.Path]; ok {
-		s.ID = sOld.ID
-	} else {
-		idBytes := make([]byte, 0, idLength)
-		for i := 0; i < cap(idBytes); i++ {
-			n, err := rand.Int(rand.Reader,
-				big.NewInt(int64(idGreatestByte-idLeastByte)))
-			if err != nil {
-				return nil, err
-			}
-			idBytes = append(idBytes, byte(n.Int64()+idLeastByte))
-		}
-		s.ID = string(idBytes)
-	}
+	s.Fmt = format.Format["format_name"].(string)
 	s.readTags(format.Format)
 	for _, st := range streams.Streams {
 		s.readTags(st)
@@ -435,6 +441,11 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound)
 		return
 	}
+	if af.fmt == s.Fmt && af.codec == s.Codec {
+		http.ServeFile(w, r, s.Path)
+		return
+	}
+	log.Println("encoding")
 	streamPath := path.Join(streamDirPath, base)
 	if _, ok := l.encoding[streamPath]; ok {
 		l.encoding[streamPath].Wait()

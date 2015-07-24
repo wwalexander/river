@@ -25,6 +25,8 @@ Running
 
 `river -library=[path to library]`
 
+A River client currently does not exist.
+
 ### FFmpeg/LibAV
 
 River calls `ffmpeg`/`avconv` and `ffprobe`/`avprobe` to transcode and read

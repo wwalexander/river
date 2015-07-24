@@ -32,8 +32,6 @@ const (
 
 // afmt represents an audio format supported by ffmpeg/avconv.
 type afmt struct {
-	// codec is the format's codec name in ffmpeg/avconv.
-	codec string
 	// fmt is the format's name in ffmpeg/avconv.
 	fmt string
 	// mime is the MIME type of the format.
@@ -45,18 +43,16 @@ type afmt struct {
 var (
 	afmts = map[string]afmt{
 		".opus": {
-			codec: "opus",
-			fmt:   "ogg",
-			mime:  "audio/ogg",
+			fmt:  "ogg",
+			mime: "audio/ogg",
 			args: []string{
 				"-b:a", "128000",
 				"-compression_level", "0",
 			},
 		},
 		".mp3": {
-			codec: "libmp3lame",
-			fmt:   "mp3",
-			mime:  "audio/mpeg",
+			fmt:  "mp3",
+			mime: "audio/mpeg",
 			args: []string{
 				"-q", "4",
 			},
@@ -70,45 +66,16 @@ type song struct {
 	ID string `json:"id"`
 	// Path is the path to the song's source file.
 	Path string `json:"path"`
-	// Fmt represents the song's format name in ffmpeg/avconv.
-	Fmt string `json:"fmt"`
-	// Codec represents the song's codec name in ffmpeg/avconv.
-	Codec string `json:"codec"`
-	// Tag represents the key-value metadata tags of the song.
-	Tags map[string]string `json:"tags"`
-}
-
-func (s song) tag(key string) (tag string, ok bool) {
-	tag, ok = s.Tags[strings.ToUpper(key)]
-	if ok {
-		return
-	}
-	tag, ok = s.Tags[strings.ToLower(key)]
-	return
-}
-
-func (s song) artist() (artist string) {
-	artist, _ = s.tag("ARTIST")
-	return
-}
-
-func (s song) album() (album string) {
-	album, _ = s.tag("ALBUM")
-	return
-}
-
-func (s song) track() (track string) {
-	track, ok := s.tag("track")
-	if ok {
-		return strings.SplitN(track, "/", 2)[0]
-	}
-	track, ok = s.tag("TRACKNUMBER")
-	return
-}
-
-func (s song) title() (title string) {
-	title, _ = s.tag("TITLE")
-	return
+	// Artist is the song's artist.
+	Artist string `json:"artist"`
+	// Album is the album the song comes from.
+	Album string `json:"album"`
+	// Disc is the album disc the song comes from.
+	Disc int `json:"disc"`
+	// Track is the song's track number on the disc it comes from.
+	Track int `json:"track"`
+	// Title is the song's title.
+	Title string `json:"title"`
 }
 
 type songHeap []*song
@@ -117,31 +84,27 @@ func (h songHeap) Len() int {
 	return len(h)
 }
 
+func compareFold(s, t string) (eq bool, less bool) {
+	sLower := strings.ToLower(s)
+	tLower := strings.ToLower(t)
+	return sLower == tLower, sLower < tLower
+}
+
 func (h songHeap) Less(i, j int) bool {
-	iArtist := h[i].artist()
-	jArtist := h[j].artist()
-	if iArtist != jArtist {
-		return iArtist < jArtist
+	if eq, less := compareFold(h[i].Artist, h[j].Artist); !eq {
+		return less
 	}
-	iAlbum := h[i].album()
-	jAlbum := h[j].album()
-	if iAlbum != jAlbum {
-		return iAlbum < jAlbum
+	if eq, less := compareFold(h[i].Album, h[j].Album); !eq {
+		return less
 	}
-	iTrack, iErr := strconv.Atoi(h[i].track())
-	jTrack, jErr := strconv.Atoi(h[j].track())
-	if iErr == nil && jErr != nil {
-		return true
-	} else if iErr != nil && jErr == nil {
-		return false
+	if h[i].Disc != h[j].Disc {
+		return h[i].Disc < h[j].Disc
 	}
-	if iTrack != jTrack {
-		return iTrack < jTrack
+	if h[i].Track != h[j].Track {
+		return h[i].Track < h[j].Track
 	}
-	iTitle := h[i].title()
-	jTitle := h[j].title()
-	if iTitle != jTitle {
-		return iTitle < jTitle
+	if eq, less := compareFold(h[i].Title, h[j].Title); !eq {
+		return less
 	}
 	return h[i].Path < h[j].Path
 }
@@ -193,19 +156,44 @@ type library struct {
 	streamRE *regexp.Regexp
 }
 
-func (s *song) readTags(container map[string]interface{}) {
-	tags, ok := container["tags"]
+type tags struct {
+	Format  map[string]interface{}
+	Streams []map[string]interface{}
+}
+
+func valRaw(key string, cont map[string]interface{}) (val string, ok bool) {
+	tags, ok := cont["tags"].(map[string]interface{})
 	if !ok {
 		return
 	}
-	for k, v := range tags.(map[string]interface{}) {
-		s.Tags[k] = v.(string)
+	if val, ok = tags[strings.ToLower(key)].(string); ok {
+		return val, ok
 	}
+	val, ok = tags[strings.ToUpper(key)].(string)
+	return
+}
+
+func (t tags) val(key string) (val string, ok bool) {
+	if val, ok := valRaw(key, t.Format); ok {
+		return val, ok
+	}
+	for _, stream := range t.Streams {
+		if val, ok := valRaw(key, stream); ok {
+			return val, ok
+		}
+	}
+	return
+}
+
+func valInt(valString string) (val int) {
+	val, _ = strconv.Atoi(strings.Split(valString, "/")[0])
+	return
 }
 
 func (l library) newSong(path string) (s *song, err error) {
 	cmd := exec.Command(l.probeCmd,
 		"-print_format", "json",
+		"-show_format",
 		"-show_streams",
 		path)
 	stdout, err := cmd.StdoutPipe()
@@ -215,23 +203,16 @@ func (l library) newSong(path string) (s *song, err error) {
 	if err = cmd.Start(); err != nil {
 		return
 	}
-	var streams struct {
-		Streams []map[string]interface{}
-	}
-	if err = json.NewDecoder(stdout).Decode(&streams); err != nil {
+	var t tags
+	if err = json.NewDecoder(stdout).Decode(&t); err != nil {
 		return
 	}
 	if err = cmd.Wait(); err != nil {
 		return
 	}
-	s = &song{
-		Path: path,
-		Tags: make(map[string]string),
-	}
 	audio := false
-	for _, stream := range streams.Streams {
+	for _, stream := range t.Streams {
 		if stream["codec_type"] == "audio" {
-			s.Codec = stream["codec_name"].(string)
 			audio = true
 			break
 		}
@@ -240,6 +221,9 @@ func (l library) newSong(path string) (s *song, err error) {
 		return nil,
 			fmt.Errorf("'%s' does not contain an audio stream",
 				path)
+	}
+	s = &song{
+		Path: path,
 	}
 	if sOld, ok := l.Songs[s.Path]; ok {
 		s.ID = sOld.ID
@@ -255,31 +239,19 @@ func (l library) newSong(path string) (s *song, err error) {
 		}
 		s.ID = string(idBytes)
 	}
-	cmd = exec.Command(l.probeCmd,
-		"-print_format", "json",
-		"-show_format",
-		path)
-	stdout, err = cmd.StdoutPipe()
-	if err != nil {
-		return
+	s.Artist, _ = t.val("artist")
+	s.Album, _ = t.val("album")
+	disc, ok := t.val("disc")
+	if !ok {
+		disc, _ = t.val("discnumber")
 	}
-	if err = cmd.Start(); err != nil {
-		return
+	s.Disc = valInt(disc)
+	track, ok := t.val("track")
+	if !ok {
+		track, _ = t.val("tracknumber")
 	}
-	var format struct {
-		Format map[string]interface{}
-	}
-	if err = json.NewDecoder(stdout).Decode(&format); err != nil {
-		return
-	}
-	if err = cmd.Wait(); err != nil {
-		return
-	}
-	s.Fmt = format.Format["format_name"].(string)
-	s.readTags(format.Format)
-	for _, st := range streams.Streams {
-		s.readTags(st)
-	}
+	s.Track = valInt(track)
+	s.Title, _ = t.val("title")
 	return
 }
 
@@ -329,15 +301,15 @@ func (l *library) reload() (err error) {
 	return
 }
 
-func chooseCmd(a string, b string) (string, error) {
-	_, erra := exec.LookPath(a)
-	_, errb := exec.LookPath(b)
-	if erra == nil {
-		return a, nil
-	} else if errb == nil {
-		return b, nil
+func chooseCmd(s string, t string) (string, error) {
+	_, errs := exec.LookPath(s)
+	_, errt := exec.LookPath(t)
+	if errs == nil {
+		return s, nil
+	} else if errt == nil {
+		return t, nil
 	}
-	return "", fmt.Errorf("could not find '%s' or '%s' executable", a, b)
+	return "", fmt.Errorf("could not find '%s' or '%s' executable", s, t)
 }
 
 func newLibrary(path string) (l *library, err error) {
@@ -447,11 +419,6 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", af.mime)
-	if af.fmt == s.Fmt && af.codec == s.Codec {
-		http.ServeFile(w, r, s.Path)
-		return
-	}
 	streamPath := path.Join(streamDirPath, base)
 	if _, ok := l.encoding[streamPath]; ok {
 		l.encoding[streamPath].Wait()
@@ -465,6 +432,7 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", af.mime)
 	http.ServeFile(w, r, streamPath)
 }
 

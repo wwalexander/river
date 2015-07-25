@@ -20,13 +20,10 @@ music without interfering or conflicting with other tools. The server is
 designed to be simple to set up for anyone with the most basic experience with
 the command line.
 
-Running
--------
+Building
+--------
 
-`river -library=[path to library]`
-
-A River client currently does not exist. You can build a client using the
-server's JSON API, detailed below.
+    go build
 
 ### FFmpeg/LibAV
 
@@ -37,6 +34,14 @@ build from [the official website](https://www.ffmpeg.org/download.html), and
 either copy the `ffmpeg` and `ffprobe` executables to this directory, somewhere
 in your system's PATH, or add the location of the executables to your system's
 PATH. Windows and OS X releases should come with the executables bundled.
+
+Running
+-------
+
+    river -library=[path to library]
+
+A River client currently does not exist. You can build a client using the
+server's JSON API, detailed [below](#api).
 
 ### Flags
 

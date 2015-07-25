@@ -124,12 +124,16 @@ Content-Type: application/json
 
 #### Get the stream for a song
 
+##### Opus
+
     GET /songs/wybtohyc.opus
 
 ```
 HTTP/1.1 200 OK
 Content-Type: audio/ogg
 ```
+
+##### MP3
 
     GET /songs/wybtohyc.mp3
 

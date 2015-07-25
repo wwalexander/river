@@ -151,8 +151,6 @@ type library struct {
 	// encoding is used to delay stream operations while a streaming file
 	// at the path represented by the key is encoding.
 	encoding map[string]*sync.WaitGroup
-	// songRE is a regular expression used to match song URLs.
-	songRE *regexp.Regexp
 	// streamRE is a regular expression used to match stream URLs.
 	streamRE *regexp.Regexp
 }
@@ -329,16 +327,10 @@ func newLibrary(path string) (l *library, err error) {
 	}
 	l.convCmd = convCmd
 	l.probeCmd = probeCmd
-	songREPrefix := fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}",
+	streamRE, err := regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
 		idLeastByte,
 		idGreatestByte,
-		idLength)
-	songRE, err := regexp.Compile(songREPrefix + "$")
-	if err != nil {
-		return nil, err
-	}
-	l.songRE = songRE
-	streamRE, err := regexp.Compile(songREPrefix + "\\..+$")
+		idLength))
 	if err != nil {
 		return nil, err
 	}
@@ -374,17 +366,6 @@ func (l library) getSongs(w http.ResponseWriter) {
 
 func httpError(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
-}
-
-func (l library) getSong(w http.ResponseWriter, r *http.Request) {
-	_, id := filepath.Split(r.URL.Path)
-	song, ok := l.SongsByID[id]
-	if !ok {
-		httpError(w, http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(song)
 }
 
 func (l library) encode(dest string, src *song, af afmt) (err error) {
@@ -447,13 +428,6 @@ func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fallthrough
 		case "GET":
 			l.getSongs(w)
-		default:
-			httpError(w, http.StatusMethodNotAllowed)
-		}
-	case l.songRE.MatchString(r.URL.Path):
-		switch r.Method {
-		case "GET":
-			l.getSong(w, r)
 		default:
 			httpError(w, http.StatusMethodNotAllowed)
 		}

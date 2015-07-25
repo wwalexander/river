@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	dbPath        = ".db.json"
+	serialPath    = ".library.json"
 	streamDirPath = ".stream"
 )
 
@@ -292,7 +292,7 @@ func (l *library) reload() (err error) {
 	for h.Len() > 0 {
 		l.SongsSorted = append(l.SongsSorted, heap.Pop(h).(*song))
 	}
-	db, err := os.OpenFile(dbPath, os.O_CREATE|os.O_TRUNC, 0666)
+	db, err := os.OpenFile(serialPath, os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return
 	}
@@ -348,7 +348,7 @@ func newLibrary(path string) (l *library, err error) {
 		return nil, err
 	}
 	os.Mkdir(streamDirPath, os.ModeDir)
-	if db, err := os.Open(dbPath); err == nil {
+	if db, err := os.Open(serialPath); err == nil {
 		defer db.Close()
 		if err = json.NewDecoder(db).Decode(l); err != nil {
 			return nil, err

@@ -2,5 +2,5 @@ river
 river.exe
 ffmpeg.exe
 ffprobe.exe
+.library.json
 .stream
-.db.json

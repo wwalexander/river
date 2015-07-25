@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -210,6 +211,9 @@ func (l library) newSong(path string) (s *song, err error) {
 	if err = cmd.Wait(); err != nil {
 		return
 	}
+	if score := t.Format["probe_score"].(float64); score < 25 {
+		return nil, errors.New("undeterminable file type")
+	}
 	audio := false
 	for _, stream := range t.Streams {
 		if stream["codec_type"] == "audio" {
@@ -218,9 +222,7 @@ func (l library) newSong(path string) (s *song, err error) {
 		}
 	}
 	if !audio {
-		return nil,
-			fmt.Errorf("'%s' does not contain an audio stream",
-				path)
+		return nil, errors.New("no audio stream")
 	}
 	s = &song{
 		Path: path,

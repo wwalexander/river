@@ -58,7 +58,7 @@ Note that track and disc numbers should begin at `1`. Numbers lower than
 
     GET /songs
 
-```
+```http
 HTTP/1.1 200 OK
 Content-Type: application/json
 ```
@@ -67,7 +67,7 @@ Content-Type: application/json
 [
 	{
 		"id": "iswkgapo",
-		"path": "/home/users/john/Music/Mr. Tambourine Man.flac",
+		"path": "Bob Dylan/Bringing It All Back Home/Mr. Tambourine Man.flac",
 		"artist": "Bob Dylan",
 		"album": "Bringing It All Back Home",
 		"disc": 2,
@@ -76,7 +76,7 @@ Content-Type: application/json
 	},
 	{
 		"id": "wybtohyc",
-		"path": "/home/users/john/Music/Holland, 1945.flac",
+		"path": "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
 		"artist": "Neutral Milk Hotel",
 		"album": "In the Aeroplane over the Sea",
 		"disc": 0,
@@ -90,7 +90,7 @@ Content-Type: application/json
 
     PUT /songs
 
-```
+```http
 HTTP/1.1 200 OK
 Content-Type: application/json
 ```
@@ -99,7 +99,7 @@ Content-Type: application/json
 [
 	{
 		"id": "iswkgapo",
-		"path": "/home/users/john/Music/Mr. Tambourine Man.flac",
+		"path": "Bob Dylan/Bringing It All Back Home/Mr. Tambourine Man.flac",
 		"artist": "Bob Dylan",
 		"album": "Bringing It All Back Home",
 		"disc": 2,
@@ -108,7 +108,7 @@ Content-Type: application/json
 	},
 	{
 		"id": "ihnqqjce",
-		"path": "/home/users/john/Music/Home.flac",
+		"path": "Neutral Milk Hotel/Ferris Wheel on Fire/Home.flac",
 		"artist": "Neutral Milk Hotel",
 		"album": "Ferris Wheel on Fire",
 		"disc": 0,
@@ -117,7 +117,7 @@ Content-Type: application/json
 	},
 	{
 		"id": "wybtohyc",
-		"path": "/home/users/john/Music/Holland, 1945.flac",
+		"path": "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
 		"artist": "Neutral Milk Hotel",
 		"album": "In the Aeroplane over the Sea",
 		"disc": 0,
@@ -133,7 +133,7 @@ Content-Type: application/json
 
     GET /songs/wybtohyc.opus
 
-```
+```http
 HTTP/1.1 200 OK
 Content-Type: audio/ogg
 ```
@@ -142,7 +142,7 @@ Content-Type: audio/ogg
 
     GET /songs/wybtohyc.mp3
 
-```
+```http
 HTTP/1.1 200 OK
 Content-Type: audio/mpeg
 ```

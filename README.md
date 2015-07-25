@@ -81,7 +81,7 @@ Content-Type: application/json
 ]
 ```
 
-### Reload the library (i.e. after adding music or editing tags)
+#### Reload the library (i.e. after adding music or editing tags)
 
     PUT /songs
 
@@ -122,7 +122,7 @@ Content-Type: application/json
 ]
 ```
 
-### Get the stream for a song
+#### Get the stream for a song
 
     GET /songs/wybtohyc.opus
 

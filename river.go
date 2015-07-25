@@ -189,12 +189,21 @@ func valInt(valString string) (val int) {
 	return
 }
 
+func (l library) absPath(path string) string {
+	return filepath.Join(l.path, path)
+}
+
+func (l library) relPath(path string) (rel string, err error) {
+	return filepath.Rel(l.path, path)
+}
+
 func (l library) newSong(path string) (s *song, err error) {
+	abs := l.absPath(path)
 	cmd := exec.Command(l.probeCmd,
 		"-print_format", "json",
 		"-show_format",
 		"-show_streams",
-		path)
+		abs)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return
@@ -264,11 +273,15 @@ func (l *library) reload() (err error) {
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		s, err := l.newSong(path)
+		rel, err := l.relPath(path)
 		if err != nil {
 			return nil
 		}
-		newSongs[path] = s
+		s, err := l.newSong(rel)
+		if err != nil {
+			return nil
+		}
+		newSongs[rel] = s
 		newSongsByID[s.ID] = s
 		heap.Push(h, s)
 		return nil
@@ -327,14 +340,13 @@ func newLibrary(path string) (l *library, err error) {
 	}
 	l.convCmd = convCmd
 	l.probeCmd = probeCmd
-	streamRE, err := regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
+	l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
 		idLeastByte,
 		idGreatestByte,
 		idLength))
 	if err != nil {
 		return nil, err
 	}
-	l.streamRE = streamRE
 	os.Mkdir(streamDirPath, os.ModeDir)
 	if db, err := os.Open(dbPath); err == nil {
 		defer db.Close()
@@ -376,7 +388,7 @@ func (l library) encode(dest string, src *song, af afmt) (err error) {
 	encoding.Add(1)
 	defer encoding.Done()
 	args := []string{
-		"-i", src.Path,
+		"-i", l.absPath(src.Path),
 		"-f", af.fmt,
 	}
 	args = append(args, af.args...)
@@ -402,7 +414,7 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound)
 		return
 	}
-	streamPath := path.Join(streamDirPath, base)
+	streamPath := filepath.Join(streamDirPath, base)
 	if _, ok := l.encoding[streamPath]; ok {
 		l.encoding[streamPath].Wait()
 	}

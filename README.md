@@ -18,7 +18,7 @@ format, if necessary.
 River integrates with existing music libraries, so setting up River streams your
 music without interfering or conflicting with other tools. The server is
 designed to be simple to set up for anyone with basic knowledge of the command
-line and is capable of configuring dynamic DNS (or owns a static global IP).
+line who is capable of configuring dynamic DNS (or owns a static global IP).
 
 Building
 --------

@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	marshalPath    = ".library.json"
+	marshalPath   = ".library.json"
 	streamDirPath = ".stream"
 )
 
@@ -356,7 +356,7 @@ func newLibrary(path string) (l *library, err error) {
 	l.convCmd = convCmd
 	l.probeCmd = probeCmd
 	if l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
-	
+
 		idLeastByte,
 		idGreatestByte,
 		idLength)); err != nil {
@@ -388,6 +388,7 @@ func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool
 }
 
 func (l library) getSongs(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	l.writing.Wait()
 	l.reading.Add(1)

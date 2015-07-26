@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	serialPath    = ".library.json"
+	marshalPath    = ".library.json"
 	streamDirPath = ".stream"
 )
 
@@ -114,8 +114,9 @@ func (h songHeap) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 }
 
-func (h *songHeap) Push(s interface{}) {
-	*h = append(*h, s.(*song))
+func (h *songHeap) Push(x interface{}) {
+	s := x.(*song)
+	*h = append(*h, s)
 }
 
 func (h *songHeap) Pop() interface{} {
@@ -136,6 +137,8 @@ type library struct {
 	// SongsSorted is a list of songs in sorted order. Songs are sorted by
 	// artist, then album, then track number.
 	SongsSorted []*song `json:"songsSorted"`
+	// Heap is a container/heap of songs in sorted order.
+	Heap *songHeap `json:"songHeap"`
 	// path is the path to the library directory.
 	path string
 	// convCmd is the command used to transcode source files.
@@ -234,7 +237,8 @@ func (l library) newSong(path string) (s *song, err error) {
 	s = &song{
 		Path: path,
 	}
-	if sOld, ok := l.Songs[s.Path]; ok {
+	sOld, ok := l.Songs[s.Path]
+	if ok {
 		s.ID = sOld.ID
 	} else {
 		idBytes := make([]byte, 0, idLength)
@@ -264,17 +268,35 @@ func (l library) newSong(path string) (s *song, err error) {
 	return
 }
 
+func (l library) marshal() (err error) {
+	db, err := os.OpenFile(marshalPath, os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return
+	}
+	defer db.Close()
+	err = json.NewEncoder(db).Encode(l)
+	return
+}
+
+func (l *library) sort() {
+	l.SongsSorted = make([]*song, 0, len(l.SongsByID))
+	for l.Heap.Len() > 0 {
+		l.SongsSorted = append(l.SongsSorted, heap.Pop(l.Heap).(*song))
+	}
+}
+
 func (l *library) reload() (err error) {
 	newSongs := make(map[string]*song)
 	newSongsByID := make(map[string]*song)
-	h := &songHeap{}
-	heap.Init(h)
+	l.Heap = &songHeap{}
+	heap.Init(l.Heap)
 	filepath.Walk(l.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
 		rel, err := l.relPath(path)
 		if err != nil {
+
 			return nil
 		}
 		s, err := l.newSong(rel)
@@ -283,21 +305,14 @@ func (l *library) reload() (err error) {
 		}
 		newSongs[rel] = s
 		newSongsByID[s.ID] = s
-		heap.Push(h, s)
+		heap.Push(l.Heap, s)
 		return nil
 	})
 	l.Songs = newSongs
 	l.SongsByID = newSongsByID
-	l.SongsSorted = make([]*song, 0, len(l.SongsByID))
-	for h.Len() > 0 {
-		l.SongsSorted = append(l.SongsSorted, heap.Pop(h).(*song))
-	}
-	db, err := os.OpenFile(serialPath, os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	if err = json.NewEncoder(db).Encode(l); err != nil {
+	heap.Init(l.Heap)
+	l.sort()
+	if err = l.marshal(); err != nil {
 		return
 	}
 	filepath.Walk(streamDirPath, func(path string, info os.FileInfo, err error) error {
@@ -340,15 +355,15 @@ func newLibrary(path string) (l *library, err error) {
 	}
 	l.convCmd = convCmd
 	l.probeCmd = probeCmd
-	l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
+	if l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
+	
 		idLeastByte,
 		idGreatestByte,
-		idLength))
-	if err != nil {
+		idLength)); err != nil {
 		return nil, err
 	}
 	os.Mkdir(streamDirPath, os.ModeDir)
-	if db, err := os.Open(serialPath); err == nil {
+	if db, err := os.Open(marshalPath); err == nil {
 		defer db.Close()
 		if err = json.NewDecoder(db).Decode(l); err != nil {
 			return nil, err
@@ -360,12 +375,16 @@ func newLibrary(path string) (l *library, err error) {
 	return
 }
 
-func (l *library) putSongs() {
+func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool) {
 	l.writing.Wait()
 	l.reading.Wait()
 	l.writing.Add(1)
 	defer l.writing.Done()
-	l.reload()
+	success = l.reload() == nil
+	if !success {
+		httpError(w, http.StatusInternalServerError)
+	}
+	return
 }
 
 func (l library) getSongs(w http.ResponseWriter) {
@@ -436,7 +455,9 @@ func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/songs":
 		switch r.Method {
 		case "PUT":
-			l.putSongs()
+			if !l.putSongs(w, r) {
+				return
+			}
 			fallthrough
 		case "GET":
 			l.getSongs(w)

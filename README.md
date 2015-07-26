@@ -40,8 +40,12 @@ Running
 
     river -library=[path to library]
 
-A River client currently does not exist. You can build a client using the
-server's JSON API, detailed [below](#api).
+To connect to the server, you can use
+[river-web](https://github.com/william-alexander/river-web), a browser-based
+River client. An iOS client will probably be in the works soon.
+
+If you'd like to build your own client, you can use the server's JSON API,
+detailed [below](#api).
 
 ### Flags
 

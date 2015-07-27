@@ -129,6 +129,8 @@ func (h *songHeap) Pop() interface{} {
 
 // library represents a music library and server.
 type library struct {
+	// path is the path to the library directory.
+	Path string `json:"path"`
 	// Songs is the primary record of songs in the library. Keys are
 	// song.Paths, and values are songs.
 	Songs map[string]*song `json:"songs"`
@@ -139,8 +141,6 @@ type library struct {
 	SongsSorted []*song `json:"songsSorted"`
 	// Heap is a container/heap of songs in sorted order.
 	Heap *songHeap `json:"songHeap"`
-	// path is the path to the library directory.
-	path string
 	// convCmd is the command used to transcode source files.
 	convCmd string
 	// probeCmd is the command used to read metadata tags from source files.
@@ -193,11 +193,11 @@ func valInt(valString string) (val int) {
 }
 
 func (l library) absPath(path string) string {
-	return filepath.Join(l.path, path)
+	return filepath.Join(l.Path, path)
 }
 
 func (l library) relPath(path string) (rel string, err error) {
-	return filepath.Rel(l.path, path)
+	return filepath.Rel(l.Path, path)
 }
 
 func (l library) newSong(path string) (s *song, err error) {
@@ -290,7 +290,7 @@ func (l *library) reload() (err error) {
 	newSongsByID := make(map[string]*song)
 	l.Heap = &songHeap{}
 	heap.Init(l.Heap)
-	filepath.Walk(l.path, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(l.Path, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -341,10 +341,8 @@ func chooseCmd(s string, t string) (string, error) {
 }
 
 func newLibrary(path string) (l *library, err error) {
-	l = &library{
-		path:     path,
-		encoding: make(map[string]*sync.WaitGroup),
-	}
+	l = &library{}
+	l.encoding = make(map[string]*sync.WaitGroup)
 	convCmd, err := chooseCmd("ffmpeg", "avconv")
 	if err != nil {
 		return nil, err
@@ -368,7 +366,9 @@ func newLibrary(path string) (l *library, err error) {
 		if err = json.NewDecoder(db).Decode(l); err != nil {
 			return nil, err
 		}
-	} else {
+	}
+	if l.Path != path {
+		l.Path = path
 		l.Songs = make(map[string]*song)
 		l.reload()
 	}

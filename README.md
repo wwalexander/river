@@ -9,9 +9,10 @@ About
 River is a personal music streaming server that is designed to be an alternative
 to proprietary streaming services. Users set up the River server on the computer
 where they store their music library, and stream their songs via client
-programs. (Custom clients can be built by using the small JSON API provided by
-the server; I plan to build a reference iOS client soon). Songs in the user's
-library can be streamed in the Ogg Opus or MP3 formats. When a stream is
+programs. Clients can be built by using the small JSON API provided by the
+server. Songs in the user's library can be streamed in the Ogg Opus or MP3
+formats (note that [all major browsers support at least one of these
+formats](https://en.wikipedia.org/wiki/HTML5_Audio)). When a stream is
 requested, songs are automatically transcoded on-the-fly to the requested
 format, if necessary.
 

@@ -12,8 +12,8 @@ where they store their music library, and stream their songs via client
 programs. Clients can be built by using the small JSON API provided by the
 server. Songs in the user's library can be streamed in the Ogg Opus or MP3
 formats (note that [all major browsers support at least one of these
-formats](https://en.wikipedia.org/wiki/HTML5_Audio)). When a stream is
-requested, songs are automatically transcoded on-the-fly to the requested
+formats](https://en.wikipedia.org/wiki/HTML5_Audio#Supported_browsers_2)).
+When a stream is requested, songs are automatically transcoded to the requested
 format, if necessary.
 
 River integrates with existing music libraries, so setting up River streams your

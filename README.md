@@ -42,7 +42,7 @@ Running
     river -library=[path to library]
 
 To connect to the server, you can use
-[river-web](https://github.com/william-alexander/river-web), a browser-based
+[river-web](https://github.com/wwalexander/river-web), a browser-based
 River client. An iOS client will probably be in the works soon.
 
 If you'd like to build your own client, you can use the server's JSON API,

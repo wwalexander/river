@@ -368,6 +368,7 @@ func newLibrary(path string) (l *library, err error) {
 }
 
 func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	l.writing.Wait()
 	l.reading.Wait()
 	l.writing.Add(1)

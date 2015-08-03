@@ -368,7 +368,6 @@ func newLibrary(path string) (l *library, err error) {
 }
 
 func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	l.writing.Wait()
 	l.reading.Wait()
 	l.writing.Add(1)
@@ -387,6 +386,12 @@ func (l library) getSongs(w http.ResponseWriter) {
 	l.reading.Add(1)
 	defer l.reading.Done()
 	json.NewEncoder(w).Encode(l.SongsSorted)
+}
+
+func (l library) optionsSongs(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "PUT, GET, OPTIONS")
+	w.WriteHeader(http.StatusOK)
 }
 
 func httpError(w http.ResponseWriter, status int) {
@@ -455,6 +460,8 @@ func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fallthrough
 		case "GET":
 			l.getSongs(w)
+		case "OPTIONS":
+			l.optionsSongs(w)
 		default:
 			httpError(w, http.StatusMethodNotAllowed)
 		}

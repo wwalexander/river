@@ -315,17 +315,10 @@ func (l *library) reload() (err error) {
 	if err = l.marshal(); err != nil {
 		return
 	}
-	filepath.Walk(streamDirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		name := info.Name()
-		if _, ok := l.SongsByID[strings.TrimSuffix(info.Name(),
-			filepath.Ext(name))]; !ok {
-			os.Remove(path)
-		}
-		return nil
-	})
+	if err = os.RemoveAll(streamDirPath); err != nil {
+		return
+	}
+	os.Mkdir(streamDirPath, os.ModeDir)
 	return
 }
 
@@ -360,7 +353,6 @@ func newLibrary(path string) (l *library, err error) {
 		idLength)); err != nil {
 		return nil, err
 	}
-	os.Mkdir(streamDirPath, os.ModeDir)
 	if db, err := os.Open(marshalPath); err == nil {
 		defer db.Close()
 		if err = json.NewDecoder(db).Decode(l); err != nil {

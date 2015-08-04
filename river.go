@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -67,6 +68,8 @@ type song struct {
 	ID string `json:"id"`
 	// Path is the path to the song's source file.
 	Path string `json:"path"`
+	// Time is the last time the song's source file was modified.
+	Time time.Time `json:"time"`
 	// Artist is the song's artist.
 	Artist string `json:"artist"`
 	// Album is the album the song comes from.
@@ -107,7 +110,8 @@ func (h songHeap) Less(i, j int) bool {
 	if eq, less := compareFold(h[i].Title, h[j].Title); !eq {
 		return less
 	}
-	return h[i].Path < h[j].Path
+	_, less := compareFold(h[i].Path, h[j].Path)
+	return less
 }
 
 func (h songHeap) Swap(i, j int) {
@@ -136,11 +140,9 @@ type library struct {
 	Songs map[string]*song `json:"songs"`
 	// SongsByID is like songs, but indexed by song.ID instead of song.Path.
 	SongsByID map[string]*song `json:"songsByID"`
-	// SongsSorted is a list of songs in sorted order. Songs are sorted by
+	// songsSorted is a list of songs in sorted order. Songs are sorted by
 	// artist, then album, then track number.
-	SongsSorted []*song `json:"songsSorted"`
-	// Heap is a container/heap of songs in sorted order.
-	Heap *songHeap `json:"songHeap"`
+	songsSorted []*song
 	// convCmd is the command used to transcode source files.
 	convCmd string
 	// probeCmd is the command used to read metadata tags from source files.
@@ -228,7 +230,6 @@ func (l library) newSong(path string) (s *song, err error) {
 	for _, stream := range t.Streams {
 		if stream["codec_type"] == "audio" {
 			audio = true
-			break
 		}
 	}
 	if !audio {
@@ -252,6 +253,16 @@ func (l library) newSong(path string) (s *song, err error) {
 		}
 		s.ID = string(idBytes)
 	}
+	songFile, err := os.Open(abs)
+	if err != nil {
+		return
+	}
+	fi, err := songFile.Stat()
+	if err != nil {
+		return
+	}
+	s.Time = fi.ModTime()
+	songFile.Close()
 	s.Artist, _ = t.val("artist")
 	s.Album, _ = t.val("album")
 	disc, ok := t.val("disc")
@@ -268,6 +279,20 @@ func (l library) newSong(path string) (s *song, err error) {
 	return
 }
 
+func deleteStream(s *song) (err error) {
+	for ext, _ := range afmts {
+		path := streamPath(s, ext)
+		if _, err = os.Stat(path); err == nil {
+			if err = os.Remove(path); err != nil {
+				return
+			}
+		} else if !os.IsNotExist(err) {
+			return
+		}
+	}
+	return
+}
+
 func (l library) marshal() (err error) {
 	db, err := os.OpenFile(marshalPath, os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
@@ -278,47 +303,54 @@ func (l library) marshal() (err error) {
 	return
 }
 
-func (l *library) sort() {
-	l.SongsSorted = make([]*song, 0, len(l.SongsByID))
-	for l.Heap.Len() > 0 {
-		l.SongsSorted = append(l.SongsSorted, heap.Pop(l.Heap).(*song))
-	}
-}
-
 func (l *library) reload() (err error) {
-	newSongs := make(map[string]*song)
-	newSongsByID := make(map[string]*song)
-	l.Heap = &songHeap{}
-	heap.Init(l.Heap)
 	filepath.Walk(l.Path, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
 		rel, err := l.relPath(path)
 		if err != nil {
-
 			return nil
 		}
-		s, err := l.newSong(rel)
-		if err != nil {
-			return nil
+		sOld, ok := l.Songs[rel]
+		reload := false
+		if ok {
+			fi, err := os.Stat(path)
+			if err != nil {
+				return nil
+			}
+			reload = fi.ModTime().After(sOld.Time)
+		} else {
+			reload = true
 		}
-		newSongs[rel] = s
-		newSongsByID[s.ID] = s
-		heap.Push(l.Heap, s)
+		if reload {
+			s, err := l.newSong(rel)
+			if err != nil {
+				return nil
+			}
+			l.Songs[rel] = s
+			l.SongsByID[s.ID] = s
+			deleteStream(s)
+		}
 		return nil
 	})
-	l.Songs = newSongs
-	l.SongsByID = newSongsByID
-	heap.Init(l.Heap)
-	l.sort()
-	if err = l.marshal(); err != nil {
-		return
+	for path, s := range l.Songs {
+		if _, err := os.Stat(l.absPath(path)); os.IsNotExist(err) {
+			delete(l.Songs, path)
+			delete(l.SongsByID, s.ID)
+			deleteStream(s)
+		}
 	}
-	if err = os.RemoveAll(streamDirPath); err != nil {
-		return
+	l.songsSorted = make([]*song, 0, len(l.Songs))
+	h := &songHeap{}
+	heap.Init(h)
+	for _, s := range l.Songs {
+		heap.Push(h, s)
 	}
-	os.Mkdir(streamDirPath, os.ModeDir)
+	for h.Len() > 0 {
+		l.songsSorted = append(l.songsSorted, heap.Pop(h).(*song))
+	}
+	err = l.marshal()
 	return
 }
 
@@ -362,8 +394,9 @@ func newLibrary(path string) (l *library, err error) {
 	if l.Path != path {
 		l.Path = path
 		l.Songs = make(map[string]*song)
-		l.reload()
+		l.SongsByID = make(map[string]*song)
 	}
+	l.reload()
 	return
 }
 
@@ -385,7 +418,7 @@ func (l library) getSongs(w http.ResponseWriter) {
 	l.writing.Wait()
 	l.reading.Add(1)
 	defer l.reading.Done()
-	json.NewEncoder(w).Encode(l.SongsSorted)
+	json.NewEncoder(w).Encode(l.songsSorted)
 }
 
 func (l library) optionsSongs(w http.ResponseWriter) {
@@ -419,6 +452,10 @@ func (l library) encode(dest string, src *song, af afmt) (err error) {
 	return
 }
 
+func streamPath(s *song, ext string) string {
+	return filepath.Join(streamDirPath, s.ID) + ext
+}
+
 func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 	base := path.Base(r.URL.Path)
 	ext := path.Ext(base)
@@ -432,7 +469,7 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound)
 		return
 	}
-	streamPath := filepath.Join(streamDirPath, base)
+	streamPath := streamPath(s, ext)
 	if _, ok := l.encoding[streamPath]; ok {
 		l.encoding[streamPath].Wait()
 	}
@@ -484,6 +521,7 @@ func main() {
 	if *flibrary == "" {
 		log.Fatal("missing library flag")
 	}
+	os.Mkdir(streamDirPath, os.ModeDir)
 	l, err := newLibrary(*flibrary)
 	if err != nil {
 		log.Fatal(err)

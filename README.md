@@ -61,7 +61,9 @@ Note that track and disc numbers should begin at `1`. Numbers lower than
 
 #### Get a list of songs in the library
 
-    GET /songs
+```http
+GET /songs HTTP/1.1
+```
 
 ```http
 HTTP/1.1 200 OK
@@ -93,7 +95,9 @@ Content-Type: application/json
 
 #### Reload the library (i.e. after adding music or editing tags)
 
-    PUT /songs
+```http
+PUT /songs HTTP/1.1
+```
 
 ```http
 HTTP/1.1 200 OK
@@ -136,7 +140,9 @@ Content-Type: application/json
 
 ##### Opus
 
-    GET /songs/wybtohyc.opus
+```http
+GET /songs/wybtohyc.opus HTTP/1.1
+```
 
 ```http
 HTTP/1.1 200 OK
@@ -145,7 +151,9 @@ Content-Type: audio/ogg
 
 ##### MP3
 
-    GET /songs/wybtohyc.mp3
+```http
+GET /songs/wybtohyc.mp3 HTTP/1.1
+```
 
 ```http
 HTTP/1.1 200 OK

@@ -147,15 +147,10 @@ type library struct {
 	convCmd string
 	// probeCmd is the command used to read metadata tags from source files.
 	probeCmd string
-	// reading is used to delay database write operations while read
-	// operations are occuring.
-	reading sync.WaitGroup
-	// writing is used to delay database read operations while a write
-	// operation is occuring.
-	writing sync.WaitGroup
+	mutex    sync.RWMutex
 	// encoding is used to delay stream operations while a streaming file
 	// at the path represented by the key is encoding.
-	encoding map[string]*sync.WaitGroup
+	encoding sync.Mutex
 	// streamRE is a regular expression used to match stream URLs.
 	streamRE *regexp.Regexp
 }
@@ -367,19 +362,15 @@ func chooseCmd(s string, t string) (string, error) {
 
 func newLibrary(path string) (l *library, err error) {
 	l = &library{}
-	l.encoding = make(map[string]*sync.WaitGroup)
-	convCmd, err := chooseCmd("ffmpeg", "avconv")
+	l.convCmd, err = chooseCmd("ffmpeg", "avconv")
 	if err != nil {
 		return nil, err
 	}
-	probeCmd, err := chooseCmd("ffprobe", "avprobe")
+	l.probeCmd, err = chooseCmd("ffprobe", "avprobe")
 	if err != nil {
 		return nil, err
 	}
-	l.convCmd = convCmd
-	l.probeCmd = probeCmd
 	if l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
-
 		idLeastByte,
 		idGreatestByte,
 		idLength)); err != nil {
@@ -401,12 +392,9 @@ func newLibrary(path string) (l *library, err error) {
 }
 
 func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool) {
-	l.writing.Wait()
-	l.reading.Wait()
-	l.writing.Add(1)
-	defer l.writing.Done()
-	success = l.reload() == nil
-	if !success {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if l.reload() != nil {
 		httpError(w, http.StatusInternalServerError)
 	}
 	return
@@ -415,10 +403,9 @@ func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool
 func (l library) getSongs(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
-	l.writing.Wait()
-	l.reading.Add(1)
-	defer l.reading.Done()
+	l.mutex.RLock()
 	json.NewEncoder(w).Encode(l.songsSorted)
+	l.mutex.RUnlock()
 }
 
 func (l library) optionsSongs(w http.ResponseWriter) {
@@ -431,13 +418,15 @@ func httpError(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
 }
 
-func (l library) encode(dest string, src *song, af afmt) (err error) {
-	if _, ok := l.encoding[dest]; !ok {
-		l.encoding[dest] = &sync.WaitGroup{}
+func (l library) encode(dest string, src *song, af afmt) error {
+	_, err := os.Stat(dest)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
 	}
-	encoding := l.encoding[dest]
-	encoding.Add(1)
-	defer encoding.Done()
+	l.encoding.Lock()
+	defer l.encoding.Unlock()
 	args := []string{
 		"-i", l.absPath(src.Path),
 		"-f", af.fmt,
@@ -449,7 +438,7 @@ func (l library) encode(dest string, src *song, af afmt) (err error) {
 			os.Remove(dest)
 		}
 	}
-	return
+	return nil
 }
 
 func streamPath(s *song, ext string) string {
@@ -457,6 +446,8 @@ func streamPath(s *song, ext string) string {
 }
 
 func (l library) getStream(w http.ResponseWriter, r *http.Request) {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 	base := path.Base(r.URL.Path)
 	ext := path.Ext(base)
 	s, ok := l.SongsByID[strings.TrimSuffix(base, ext)]
@@ -470,15 +461,7 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	streamPath := streamPath(s, ext)
-	if _, ok := l.encoding[streamPath]; ok {
-		l.encoding[streamPath].Wait()
-	}
-	_, err := os.Stat(streamPath)
-	if err != nil && !os.IsNotExist(err) {
-		httpError(w, http.StatusInternalServerError)
-		return
-	}
-	if os.IsNotExist(err) && l.encode(streamPath, s, af) != nil {
+	if l.encode(streamPath, s, af) != nil {
 		httpError(w, http.StatusInternalServerError)
 		return
 	}

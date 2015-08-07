@@ -404,8 +404,8 @@ func (l library) getSongs(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 	json.NewEncoder(w).Encode(l.songsSorted)
-	l.mutex.RUnlock()
 }
 
 func (l library) optionsSongs(w http.ResponseWriter) {

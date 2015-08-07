@@ -131,6 +131,54 @@ func (h *songHeap) Pop() interface{} {
 	return s
 }
 
+// encoder encodes streaming files.
+type encoder struct {
+	// convCmd is the command used to transcode source files.
+	convCmd string
+	// encoding maps streaming filenames to mutexes. Encode operations wait for
+	// a lock on the appropriate mutex before encoding.
+	encoding map[string]*sync.Mutex
+	// mutex is used to avoid concurrent writes to encoding.
+	mutex sync.Mutex
+}
+
+func newEncoder(convCmd string) *encoder {
+	return &encoder{
+		convCmd:  convCmd,
+		encoding: make(map[string]*sync.Mutex),
+	}
+}
+
+func (e *encoder) encode(dest string, src string, af afmt) error {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	mutex, ok := e.encoding[dest]
+	if !ok {
+		mutex = &sync.Mutex{}
+		e.encoding[dest] = mutex
+	}
+	mutex.Lock()
+	defer mutex.Unlock()
+	_, err := os.Stat(dest)
+	if err == nil {
+		return nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	args := []string{
+		"-i", src,
+		"-f", af.fmt,
+	}
+	args = append(args, af.args...)
+	args = append(args, dest)
+	if err = exec.Command(e.convCmd, args...).Run(); err != nil {
+		if _, err = os.Stat(dest); err == nil {
+			os.Remove(dest)
+		}
+	}
+	return nil
+}
+
 // library represents a music library and server.
 type library struct {
 	// path is the path to the library directory.
@@ -143,14 +191,12 @@ type library struct {
 	// songsSorted is a list of songs in sorted order. Songs are sorted by
 	// artist, then album, then track number.
 	songsSorted []*song
-	// convCmd is the command used to transcode source files.
-	convCmd string
 	// probeCmd is the command used to read metadata tags from source files.
 	probeCmd string
-	mutex    sync.RWMutex
-	// encoding is used to delay stream operations while a streaming file
-	// at the path represented by the key is encoding.
-	encoding sync.Mutex
+	// mutex is used to prevent concurrent write and read operations.
+	mutex sync.RWMutex
+	// enc is used to encode streaming files.
+	enc *encoder
 	// streamRE is a regular expression used to match stream URLs.
 	streamRE *regexp.Regexp
 }
@@ -362,14 +408,15 @@ func chooseCmd(s string, t string) (string, error) {
 
 func newLibrary(path string) (l *library, err error) {
 	l = &library{}
-	l.convCmd, err = chooseCmd("ffmpeg", "avconv")
-	if err != nil {
-		return nil, err
-	}
 	l.probeCmd, err = chooseCmd("ffprobe", "avprobe")
 	if err != nil {
 		return nil, err
 	}
+	convCmd, err := chooseCmd("ffmpeg", "avconv")
+	if err != nil {
+		return nil, err
+	}
+	l.enc = newEncoder(convCmd)
 	if l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
 		idLeastByte,
 		idGreatestByte,
@@ -418,29 +465,6 @@ func httpError(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
 }
 
-func (l library) encode(dest string, src *song, af afmt) error {
-	_, err := os.Stat(dest)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	l.encoding.Lock()
-	defer l.encoding.Unlock()
-	args := []string{
-		"-i", l.absPath(src.Path),
-		"-f", af.fmt,
-	}
-	args = append(args, af.args...)
-	args = append(args, dest)
-	if err = exec.Command(l.convCmd, args...).Run(); err != nil {
-		if _, err = os.Stat(dest); err == nil {
-			os.Remove(dest)
-		}
-	}
-	return nil
-}
-
 func streamPath(s *song, ext string) string {
 	return filepath.Join(streamDirPath, s.ID) + ext
 }
@@ -461,7 +485,7 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	streamPath := streamPath(s, ext)
-	if l.encode(streamPath, s, af) != nil {
+	if l.enc.encode(streamPath, l.absPath(s.Path), af) != nil {
 		httpError(w, http.StatusInternalServerError)
 		return
 	}

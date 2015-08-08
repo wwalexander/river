@@ -7,6 +7,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/ssh/terminal"
 	"log"
 	"math/big"
 	"net/http"
@@ -29,8 +31,9 @@ const (
 const (
 	idLeastByte    = 'a'
 	idGreatestByte = 'z'
-	idLength       = 8
 )
+
+const songIDLength = 8
 
 // afmt represents an audio format supported by ffmpeg/avconv.
 type afmt struct {
@@ -197,6 +200,8 @@ type library struct {
 	mutex sync.RWMutex
 	// enc is used to encode streaming files.
 	enc *encoder
+	// hash is the bcrypt hash of the library's password.
+	hash []byte
 	// streamRE is a regular expression used to match stream URLs.
 	streamRE *regexp.Regexp
 }
@@ -243,6 +248,19 @@ func (l library) relPath(path string) (rel string, err error) {
 	return filepath.Rel(l.Path, path)
 }
 
+func genID(length int) (string, error) {
+	idBytes := make([]byte, 0, length)
+	for i := 0; i < cap(idBytes); i++ {
+		n, err := rand.Int(rand.Reader,
+			big.NewInt(int64(idGreatestByte-idLeastByte)))
+		if err != nil {
+			return "", err
+		}
+		idBytes = append(idBytes, byte(n.Int64())+idLeastByte)
+	}
+	return string(idBytes), nil
+}
+
 func (l library) newSong(path string) (s *song, err error) {
 	abs := l.absPath(path)
 	cmd := exec.Command(l.probeCmd,
@@ -283,16 +301,11 @@ func (l library) newSong(path string) (s *song, err error) {
 	if ok {
 		s.ID = sOld.ID
 	} else {
-		idBytes := make([]byte, 0, idLength)
-		for i := 0; i < cap(idBytes); i++ {
-			n, err := rand.Int(rand.Reader,
-				big.NewInt(int64(idGreatestByte-idLeastByte)))
-			if err != nil {
-				return nil, err
-			}
-			idBytes = append(idBytes, byte(n.Int64()+idLeastByte))
+		id, err := genID(songIDLength)
+		if err != nil {
+			return nil, err
 		}
-		s.ID = string(idBytes)
+		s.ID = id
 	}
 	songFile, err := os.Open(abs)
 	if err != nil {
@@ -406,8 +419,10 @@ func chooseCmd(s string, t string) (string, error) {
 	return "", fmt.Errorf("could not find '%s' or '%s' executable", s, t)
 }
 
-func newLibrary(path string) (l *library, err error) {
-	l = &library{}
+func newLibrary(path string, hash []byte) (l *library, err error) {
+	l = &library{
+		hash: hash,
+	}
 	l.probeCmd, err = chooseCmd("ffprobe", "avprobe")
 	if err != nil {
 		return nil, err
@@ -420,7 +435,7 @@ func newLibrary(path string) (l *library, err error) {
 	if l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
 		idLeastByte,
 		idGreatestByte,
-		idLength)); err != nil {
+		songIDLength)); err != nil {
 		return nil, err
 	}
 	if db, err := os.Open(marshalPath); err == nil {
@@ -448,7 +463,6 @@ func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool
 }
 
 func (l library) getSongs(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
@@ -456,8 +470,8 @@ func (l library) getSongs(w http.ResponseWriter) {
 }
 
 func (l library) optionsSongs(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "PUT, GET, OPTIONS")
+	w.Header().Set("WWW-Authenticate", "Basic realm=\"River\"")
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -494,9 +508,22 @@ func (l library) getStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+	streamREMatch := l.streamRE.MatchString(r.URL.Path)
+	if !streamREMatch && r.Method != "OPTIONS" {
+		_, password, ok := r.BasicAuth()
+		if !ok || bcrypt.CompareHashAndPassword(l.hash,
+			[]byte(password)) != nil {
+			httpError(w, http.StatusUnauthorized)
+			return
+		}
+	}
 	switch {
 	case r.URL.Path == "/songs":
 		switch r.Method {
+		case "OPTIONS":
+			l.optionsSongs(w)
 		case "PUT":
 			if !l.putSongs(w, r) {
 				return
@@ -504,12 +531,10 @@ func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fallthrough
 		case "GET":
 			l.getSongs(w)
-		case "OPTIONS":
-			l.optionsSongs(w)
 		default:
 			httpError(w, http.StatusMethodNotAllowed)
 		}
-	case l.streamRE.MatchString(r.URL.Path):
+	case streamREMatch:
 		switch r.Method {
 		case "GET":
 			l.getStream(w, r)
@@ -528,8 +553,18 @@ func main() {
 	if *flibrary == "" {
 		log.Fatal("missing library flag")
 	}
+	fmt.Print("Enter a password: ")
+	password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		log.Fatal(err)
+	}
+	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatal(err)
+	}
 	os.Mkdir(streamDirPath, os.ModeDir)
-	l, err := newLibrary(*flibrary)
+	l, err := newLibrary(*flibrary, hash)
 	if err != nil {
 		log.Fatal(err)
 	}

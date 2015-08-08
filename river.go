@@ -459,7 +459,7 @@ func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool
 	if l.reload() != nil {
 		httpError(w, http.StatusInternalServerError)
 	}
-	return
+	return true
 }
 
 func (l library) getSongs(w http.ResponseWriter) {

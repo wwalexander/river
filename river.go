@@ -142,13 +142,14 @@ type encoder struct {
 	// a lock on the appropriate mutex before encoding.
 	encoding map[string]*sync.Mutex
 	// mutex is used to avoid concurrent writes to encoding.
-	mutex sync.Mutex
+	mutex *sync.Mutex
 }
 
 func newEncoder(convCmd string) *encoder {
 	return &encoder{
 		convCmd:  convCmd,
 		encoding: make(map[string]*sync.Mutex),
+		mutex:    &sync.Mutex{},
 	}
 }
 
@@ -197,7 +198,7 @@ type library struct {
 	// probeCmd is the command used to read metadata tags from source files.
 	probeCmd string
 	// mutex is used to prevent concurrent write and read operations.
-	mutex sync.RWMutex
+	mutex *sync.RWMutex
 	// enc is used to encode streaming files.
 	enc *encoder
 	// hash is the bcrypt hash of the library's password.
@@ -334,7 +335,7 @@ func (l library) newSong(path string) (s *song, err error) {
 }
 
 func deleteStream(s *song) (err error) {
-	for ext, _ := range afmts {
+	for ext := range afmts {
 		path := streamPath(s, ext)
 		if _, err = os.Stat(path); err == nil {
 			if err = os.Remove(path); err != nil {
@@ -421,7 +422,8 @@ func chooseCmd(s string, t string) (string, error) {
 
 func newLibrary(path string, hash []byte) (l *library, err error) {
 	l = &library{
-		hash: hash,
+		hash:  hash,
+		mutex: &sync.RWMutex{},
 	}
 	l.probeCmd, err = chooseCmd("ffprobe", "avprobe")
 	if err != nil {
@@ -462,14 +464,14 @@ func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool
 	return true
 }
 
-func (l library) getSongs(w http.ResponseWriter) {
+func (l *library) getSongs(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	json.NewEncoder(w).Encode(l.songsSorted)
 }
 
-func (l library) optionsSongs(w http.ResponseWriter) {
+func (l *library) optionsSongs(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Methods", "PUT, GET, OPTIONS")
 	w.Header().Set("WWW-Authenticate", "Basic realm=\"River\"")
 	w.WriteHeader(http.StatusOK)
@@ -483,7 +485,7 @@ func streamPath(s *song, ext string) string {
 	return filepath.Join(streamDirPath, s.ID) + ext
 }
 
-func (l library) getStream(w http.ResponseWriter, r *http.Request) {
+func (l *library) getStream(w http.ResponseWriter, r *http.Request) {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	base := path.Base(r.URL.Path)

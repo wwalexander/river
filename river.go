@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/heap"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -17,6 +16,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,38 +35,38 @@ const (
 
 const songIDLength = 8
 
-// afmt represents an audio format supported by ffmpeg/avconv.
-type afmt struct {
-	// fmt is the format's name in ffmpeg/avconv.
-	fmt string
-	// mime is the MIME type of the format.
-	mime string
-	// args are the codec-specific ffmpeg/avconv arguments to use.
-	args []string
+// Afmt represents an audio format supported by ffmpeg/avconv.
+type Afmt struct {
+	// Fmt is the format's name in ffmpeg/avconv.
+	Fmt string
+	// Mime is the MIME type of the format.
+	Mime string
+	// Args are the codec-specific ffmpeg/avconv arguments to use.
+	Args []string
 }
 
 var (
-	afmts = map[string]afmt{
+	afmts = map[string]Afmt{
 		".opus": {
-			fmt:  "ogg",
-			mime: "audio/ogg",
-			args: []string{
+			Fmt:  "ogg",
+			Mime: "audio/ogg",
+			Args: []string{
 				"-b:a", "128000",
 				"-compression_level", "0",
 			},
 		},
 		".mp3": {
-			fmt:  "mp3",
-			mime: "audio/mpeg",
-			args: []string{
+			Fmt:  "mp3",
+			Mime: "audio/mpeg",
+			Args: []string{
 				"-q", "4",
 			},
 		},
 	}
 )
 
-// song represents a song in a library.
-type song struct {
+// Song represents a song in a library.
+type Song struct {
 	// ID is the unique ID of the song.
 	ID string `json:"id"`
 	// Path is the path to the song's source file.
@@ -85,11 +85,10 @@ type song struct {
 	Title string `json:"title"`
 }
 
-type songHeap []*song
+type ByTags []*Song
 
-func (h songHeap) Len() int {
-	return len(h)
-}
+func (t ByTags) Len() int      { return len(t) }
+func (t ByTags) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
 
 func compareFold(s, t string) (eq bool, less bool) {
 	sLower := strings.ToLower(s)
@@ -97,63 +96,44 @@ func compareFold(s, t string) (eq bool, less bool) {
 	return sLower == tLower, sLower < tLower
 }
 
-func (h songHeap) Less(i, j int) bool {
-	if eq, less := compareFold(h[i].Artist, h[j].Artist); !eq {
+func (t ByTags) Less(i, j int) bool {
+	if eq, less := compareFold(t[i].Artist, t[j].Artist); !eq {
 		return less
 	}
-	if eq, less := compareFold(h[i].Album, h[j].Album); !eq {
+	if eq, less := compareFold(t[i].Album, t[j].Album); !eq {
 		return less
 	}
-	if h[i].Disc != h[j].Disc {
-		return h[i].Disc < h[j].Disc
+	if t[i].Disc != t[j].Disc {
+		return t[i].Disc < t[j].Disc
 	}
-	if h[i].Track != h[j].Track {
-		return h[i].Track < h[j].Track
+	if t[i].Track != t[j].Track {
+		return t[i].Track < t[j].Track
 	}
-	if eq, less := compareFold(h[i].Title, h[j].Title); !eq {
+	if eq, less := compareFold(t[i].Title, t[j].Title); !eq {
 		return less
 	}
-	_, less := compareFold(h[i].Path, h[j].Path)
+	_, less := compareFold(t[i].Path, t[j].Path)
 	return less
 }
 
-func (h songHeap) Swap(i, j int) {
-	h[i], h[j] = h[j], h[i]
-}
-
-func (h *songHeap) Push(x interface{}) {
-	s := x.(*song)
-	*h = append(*h, s)
-}
-
-func (h *songHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	s := old[n-1]
-	*h = old[0 : n-1]
-	return s
-}
-
-// encoder encodes streaming files.
-type encoder struct {
-	// convCmd is the command used to transcode source files.
-	convCmd string
-	// encoding maps streaming filenames to mutexes. Encode operations wait for
-	// a lock on the appropriate mutex before encoding.
+// Encoder encodes streaming files.
+type Encoder struct {
+	convCmd  string
 	encoding map[string]*sync.Mutex
-	// mutex is used to avoid concurrent writes to encoding.
-	mutex *sync.Mutex
+	mutex    *sync.Mutex
 }
 
-func newEncoder(convCmd string) *encoder {
-	return &encoder{
+// NewEncoder returns a new Encoder which uses convCmd as the encoding tool.
+func NewEncoder(convCmd string) *Encoder {
+	return &Encoder{
 		convCmd:  convCmd,
 		encoding: make(map[string]*sync.Mutex),
 		mutex:    &sync.Mutex{},
 	}
 }
 
-func (e *encoder) encode(dest string, src string, af afmt) error {
+// Encode encodes src to the audio format specified by af, writing to dest.
+func (e *Encoder) Encode(dest string, src string, af Afmt) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	mutex, ok := e.encoding[dest]
@@ -171,9 +151,9 @@ func (e *encoder) encode(dest string, src string, af afmt) error {
 	}
 	args := []string{
 		"-i", src,
-		"-f", af.fmt,
+		"-f", af.Fmt,
 	}
-	args = append(args, af.args...)
+	args = append(args, af.Args...)
 	args = append(args, dest)
 	if err = exec.Command(e.convCmd, args...).Run(); err != nil {
 		if _, err = os.Stat(dest); err == nil {
@@ -183,31 +163,24 @@ func (e *encoder) encode(dest string, src string, af afmt) error {
 	return nil
 }
 
-// library represents a music library and server.
-type library struct {
-	// path is the path to the library directory.
+// Library represents a music library and server.
+type Library struct {
+	// Path is the path to the library directory.
 	Path string `json:"path"`
 	// Songs is the primary record of songs in the library. Keys are
 	// song.Paths, and values are songs.
-	Songs map[string]*song `json:"songs"`
+	Songs map[string]*Song `json:"songs"`
 	// SongsByID is like songs, but indexed by song.ID instead of song.Path.
-	SongsByID map[string]*song `json:"songsByID"`
-	// songsSorted is a list of songs in sorted order. Songs are sorted by
-	// artist, then album, then track number.
-	songsSorted []*song
-	// probeCmd is the command used to read metadata tags from source files.
-	probeCmd string
-	// mutex is used to prevent concurrent write and read operations.
-	mutex *sync.RWMutex
-	// enc is used to encode streaming files.
-	enc *encoder
-	// hash is the bcrypt hash of the library's password.
-	hash []byte
-	// streamRE is a regular expression used to match stream URLs.
-	streamRE *regexp.Regexp
+	SongsByID map[string]*Song `json:"songsByID"`
+	sorted    []*Song
+	probeCmd  string
+	mutex     *sync.RWMutex
+	enc       *Encoder
+	hash      []byte
+	streamRE  *regexp.Regexp
 }
 
-type tags struct {
+type Tags struct {
 	Format  map[string]interface{}
 	Streams []map[string]interface{}
 }
@@ -224,7 +197,7 @@ func valRaw(key string, cont map[string]interface{}) (val string, ok bool) {
 	return
 }
 
-func (t tags) val(key string) (val string, ok bool) {
+func (t Tags) val(key string) (val string, ok bool) {
 	if val, ok := valRaw(key, t.Format); ok {
 		return val, ok
 	}
@@ -241,11 +214,11 @@ func valInt(valString string) (val int) {
 	return
 }
 
-func (l library) absPath(path string) string {
+func (l Library) absPath(path string) string {
 	return filepath.Join(l.Path, path)
 }
 
-func (l library) relPath(path string) (rel string, err error) {
+func (l Library) relPath(path string) (rel string, err error) {
 	return filepath.Rel(l.Path, path)
 }
 
@@ -262,7 +235,7 @@ func genID(length int) (string, error) {
 	return string(idBytes), nil
 }
 
-func (l library) newSong(path string) (s *song, err error) {
+func (l Library) newSong(path string) (s *Song, err error) {
 	abs := l.absPath(path)
 	cmd := exec.Command(l.probeCmd,
 		"-print_format", "json",
@@ -276,7 +249,7 @@ func (l library) newSong(path string) (s *song, err error) {
 	if err = cmd.Start(); err != nil {
 		return
 	}
-	var t tags
+	var t Tags
 	if err = json.NewDecoder(stdout).Decode(&t); err != nil {
 		return
 	}
@@ -295,7 +268,7 @@ func (l library) newSong(path string) (s *song, err error) {
 	if !audio {
 		return nil, errors.New("no audio stream")
 	}
-	s = &song{
+	s = &Song{
 		Path: path,
 	}
 	sOld, ok := l.Songs[s.Path]
@@ -334,7 +307,7 @@ func (l library) newSong(path string) (s *song, err error) {
 	return
 }
 
-func deleteStream(s *song) (err error) {
+func deleteStream(s *Song) (err error) {
 	for ext := range afmts {
 		path := streamPath(s, ext)
 		if _, err = os.Stat(path); err == nil {
@@ -348,7 +321,7 @@ func deleteStream(s *song) (err error) {
 	return
 }
 
-func (l library) marshal() (err error) {
+func (l Library) marshal() (err error) {
 	db, err := os.OpenFile(marshalPath, os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return
@@ -358,7 +331,7 @@ func (l library) marshal() (err error) {
 	return
 }
 
-func (l *library) reload() (err error) {
+func (l *Library) reload() (err error) {
 	filepath.Walk(l.Path, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
@@ -396,20 +369,16 @@ func (l *library) reload() (err error) {
 			deleteStream(s)
 		}
 	}
-	l.songsSorted = make([]*song, 0, len(l.Songs))
-	h := &songHeap{}
-	heap.Init(h)
+	l.sorted = make(ByTags, 0, len(l.Songs))
 	for _, s := range l.Songs {
-		heap.Push(h, s)
+		l.sorted = append(l.sorted, s)
 	}
-	for h.Len() > 0 {
-		l.songsSorted = append(l.songsSorted, heap.Pop(h).(*song))
-	}
+	sort.Sort(ByTags(l.sorted))
 	err = l.marshal()
 	return
 }
 
-func chooseCmd(s string, t string) (string, error) {
+func chooseCmd(s, t string) (string, error) {
 	_, errs := exec.LookPath(s)
 	_, errt := exec.LookPath(t)
 	if errs == nil {
@@ -420,8 +389,10 @@ func chooseCmd(s string, t string) (string, error) {
 	return "", fmt.Errorf("could not find '%s' or '%s' executable", s, t)
 }
 
-func newLibrary(path string, hash []byte) (l *library, err error) {
-	l = &library{
+// NewLibrary returns a new Library for path which requires an authentication
+// password whose bcrypt hash compares with hash.
+func NewLibrary(path string, hash []byte) (l *Library, err error) {
+	l = &Library{
 		hash:  hash,
 		mutex: &sync.RWMutex{},
 	}
@@ -433,7 +404,7 @@ func newLibrary(path string, hash []byte) (l *library, err error) {
 	if err != nil {
 		return nil, err
 	}
-	l.enc = newEncoder(convCmd)
+	l.enc = NewEncoder(convCmd)
 	if l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
 		idLeastByte,
 		idGreatestByte,
@@ -448,14 +419,14 @@ func newLibrary(path string, hash []byte) (l *library, err error) {
 	}
 	if l.Path != path {
 		l.Path = path
-		l.Songs = make(map[string]*song)
-		l.SongsByID = make(map[string]*song)
+		l.Songs = make(map[string]*Song)
+		l.SongsByID = make(map[string]*Song)
 	}
 	l.reload()
 	return
 }
 
-func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool) {
+func (l *Library) putSongs(w http.ResponseWriter, r *http.Request) (success bool) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if l.reload() != nil {
@@ -464,14 +435,14 @@ func (l *library) putSongs(w http.ResponseWriter, r *http.Request) (success bool
 	return true
 }
 
-func (l *library) getSongs(w http.ResponseWriter) {
+func (l *Library) getSongs(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
-	json.NewEncoder(w).Encode(l.songsSorted)
+	json.NewEncoder(w).Encode(l.sorted)
 }
 
-func (l *library) optionsSongs(w http.ResponseWriter) {
+func (l *Library) optionsSongs(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Methods", "PUT, GET, OPTIONS")
 	w.Header().Set("WWW-Authenticate", "Basic realm=\"River\"")
 	w.WriteHeader(http.StatusOK)
@@ -481,11 +452,11 @@ func httpError(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
 }
 
-func streamPath(s *song, ext string) string {
+func streamPath(s *Song, ext string) string {
 	return filepath.Join(streamDirPath, s.ID) + ext
 }
 
-func (l *library) getStream(w http.ResponseWriter, r *http.Request) {
+func (l *Library) getStream(w http.ResponseWriter, r *http.Request) {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	base := path.Base(r.URL.Path)
@@ -501,15 +472,15 @@ func (l *library) getStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	streamPath := streamPath(s, ext)
-	if l.enc.encode(streamPath, l.absPath(s.Path), af) != nil {
+	if l.enc.Encode(streamPath, l.absPath(s.Path), af) != nil {
 		httpError(w, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", af.mime)
+	w.Header().Set("Content-Type", af.Mime)
 	http.ServeFile(w, r, streamPath)
 }
 
-func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
 	streamREMatch := l.streamRE.MatchString(r.URL.Path)
@@ -571,7 +542,7 @@ func main() {
 		log.Fatal(err)
 	}
 	os.Mkdir(streamDirPath, os.ModeDir)
-	l, err := newLibrary(*flibrary, hash)
+	l, err := NewLibrary(*flibrary, hash)
 	if err != nil {
 		log.Fatal(err)
 	}

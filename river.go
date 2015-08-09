@@ -546,6 +546,17 @@ func (l *library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getHash() (hash []byte, err error) {
+	fmt.Print("Enter a password: ")
+	password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return
+	}
+	hash, err = bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	return
+}
+
 func main() {
 	flibrary := flag.String("library", "", "the library directory")
 	fport := flag.Uint("port", 21313, "the port to listen on")
@@ -553,13 +564,7 @@ func main() {
 	if *flibrary == "" {
 		log.Fatal("missing library flag")
 	}
-	fmt.Print("Enter a password: ")
-	password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	if err != nil {
-		log.Fatal(err)
-	}
-	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	hash, err := getHash()
 	if err != nil {
 		log.Fatal(err)
 	}

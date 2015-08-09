@@ -547,6 +547,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	http.Handle("/", l)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *fport), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *fport), l))
 }

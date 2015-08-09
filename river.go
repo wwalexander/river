@@ -170,7 +170,7 @@ type Library struct {
 	// Path is the path to the library directory.
 	Path string `json:"path"`
 	// SongsByPath maps Song.Paths to Songs.
-	SongsByPath map[string]*Song `json:"songs"`
+	SongsByPath map[string]*Song `json:"songsByPath"`
 	// SongsByID maps Song.IDs to Songs.
 	SongsByID map[string]*Song `json:"songsByID"`
 	sorted    []*Song

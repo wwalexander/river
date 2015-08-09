@@ -67,24 +67,26 @@ var (
 
 // Song represents a song in a library.
 type Song struct {
-	// ID is the unique ID of the song.
+	// ID is the unique ID of the Song.
 	ID string `json:"id"`
-	// Path is the path to the song's source file.
+	// Path is the path to the Song's source file.
 	Path string `json:"path"`
-	// Time is the last time the song's source file was modified.
+	// Time is the last time the Song's source file was modified.
 	Time time.Time `json:"time"`
-	// Artist is the song's artist.
+	// Artist is the Song's artist.
 	Artist string `json:"artist"`
-	// Album is the album the song comes from.
+	// Album is the album the Song comes from.
 	Album string `json:"album"`
-	// Disc is the album disc the song comes from.
+	// Disc is the album disc the Song comes from.
 	Disc int `json:"disc"`
-	// Track is the song's track number on the disc it comes from.
+	// Track is the Song's track number on the disc it comes from.
 	Track int `json:"track"`
-	// Title is the song's title.
+	// Title is the Song's title.
 	Title string `json:"title"`
 }
 
+// ByTags sorts Songs by their tags, with the following priority:
+// artist, album, disc number, track number, title, library path
 type ByTags []*Song
 
 func (t ByTags) Len() int      { return len(t) }
@@ -170,7 +172,7 @@ type Library struct {
 	// Songs is the primary record of songs in the library. Keys are
 	// song.Paths, and values are songs.
 	Songs map[string]*Song `json:"songs"`
-	// SongsByID is like songs, but indexed by song.ID instead of song.Path.
+	// SongsByID is like Songs, but indexed by ID instead of Path.
 	SongsByID map[string]*Song `json:"songsByID"`
 	sorted    []*Song
 	probeCmd  string
@@ -180,7 +182,7 @@ type Library struct {
 	streamRE  *regexp.Regexp
 }
 
-type Tags struct {
+type tags struct {
 	Format  map[string]interface{}
 	Streams []map[string]interface{}
 }
@@ -197,7 +199,7 @@ func valRaw(key string, cont map[string]interface{}) (val string, ok bool) {
 	return
 }
 
-func (t Tags) val(key string) (val string, ok bool) {
+func (t tags) val(key string) (val string, ok bool) {
 	if val, ok := valRaw(key, t.Format); ok {
 		return val, ok
 	}
@@ -249,7 +251,7 @@ func (l Library) newSong(path string) (s *Song, err error) {
 	if err = cmd.Start(); err != nil {
 		return
 	}
-	var t Tags
+	var t tags
 	if err = json.NewDecoder(stdout).Decode(&t); err != nil {
 		return
 	}

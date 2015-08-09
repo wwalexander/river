@@ -169,10 +169,9 @@ func (e *Encoder) Encode(dest string, src string, af Afmt) error {
 type Library struct {
 	// Path is the path to the library directory.
 	Path string `json:"path"`
-	// Songs is the primary record of songs in the library. Keys are
-	// song.Paths, and values are songs.
-	Songs map[string]*Song `json:"songs"`
-	// SongsByID is like Songs, but indexed by ID instead of Path.
+	// SongsByPath maps Song.Paths to Songs.
+	SongsByPath map[string]*Song `json:"songs"`
+	// SongsByID maps Song.IDs to Songs.
 	SongsByID map[string]*Song `json:"songsByID"`
 	sorted    []*Song
 	probeCmd  string
@@ -273,7 +272,7 @@ func (l Library) newSong(path string) (s *Song, err error) {
 	s = &Song{
 		Path: path,
 	}
-	sOld, ok := l.Songs[s.Path]
+	sOld, ok := l.SongsByPath[s.Path]
 	if ok {
 		s.ID = sOld.ID
 	} else {
@@ -342,7 +341,7 @@ func (l *Library) reload() (err error) {
 		if err != nil {
 			return nil
 		}
-		sOld, ok := l.Songs[rel]
+		sOld, ok := l.SongsByPath[rel]
 		reload := false
 		if ok {
 			fi, err := os.Stat(path)
@@ -358,21 +357,21 @@ func (l *Library) reload() (err error) {
 			if err != nil {
 				return nil
 			}
-			l.Songs[rel] = s
+			l.SongsByPath[rel] = s
 			l.SongsByID[s.ID] = s
 			deleteStream(s)
 		}
 		return nil
 	})
-	for path, s := range l.Songs {
+	for path, s := range l.SongsByPath {
 		if _, err := os.Stat(l.absPath(path)); os.IsNotExist(err) {
-			delete(l.Songs, path)
+			delete(l.SongsByPath, path)
 			delete(l.SongsByID, s.ID)
 			deleteStream(s)
 		}
 	}
-	l.sorted = make(ByTags, 0, len(l.Songs))
-	for _, s := range l.Songs {
+	l.sorted = make(ByTags, 0, len(l.SongsByPath))
+	for _, s := range l.SongsByPath {
 		l.sorted = append(l.sorted, s)
 	}
 	sort.Sort(ByTags(l.sorted))
@@ -421,7 +420,7 @@ func NewLibrary(path string, hash []byte) (l *Library, err error) {
 	}
 	if l.Path != path {
 		l.Path = path
-		l.Songs = make(map[string]*Song)
+		l.SongsByPath = make(map[string]*Song)
 		l.SongsByID = make(map[string]*Song)
 	}
 	l.reload()

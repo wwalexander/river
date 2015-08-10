@@ -54,6 +54,14 @@ detailed [below](#api).
 
 `-port`: the port to listen on (defaults to 21313)
 
+`-cert`: the TLS certificate to use
+
+`-key`: the TLS key to use
+
+The TLS flags can be omitted, but connections will be insecure. Creating a
+self-signed certificate and key and adding the certificate to your device or
+browser's trusted list is highly recommended.
+
 ### API
 
 Note that track and disc numbers should begin at `1`. Numbers lower than

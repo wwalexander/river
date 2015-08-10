@@ -558,13 +558,15 @@ func main() {
 	if !flagIsSet(flibraryName) {
 		flagUnset(flibraryName)
 	}
-	if flagIsSet(fcertName) && !flagIsSet(fkeyName) {
+	fcertSet := flagIsSet(fcertName)
+	fkeySet := flagIsSet(fkeyName)
+	if fcertSet && !fkeySet {
 		flagUnset(fkeyName)
 	}
-	if !flagIsSet(fcertName) && flagIsSet(fkeyName) {
+	if !fcertSet && fkeySet {
 		flagUnset(fcertName)
 	}
-	noTLS := !flagIsSet(fcertName) && !flagIsSet(fkeyName)
+	noTLS := !fcertSet && !fkeySet
 	if noTLS {
 		log.Println("no TLS files specified: connections are insecure!")
 	}

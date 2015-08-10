@@ -35,6 +35,13 @@ const (
 
 const songIDLength = 8
 
+const (
+	flibraryName = "library"
+	fportName    = "port"
+	fcertName    = "cert"
+	fkeyName     = "key"
+)
+
 // Afmt represents an audio format supported by ffmpeg/avconv.
 type Afmt struct {
 	// Fmt is the format's name in ffmpeg/avconv.
@@ -45,25 +52,23 @@ type Afmt struct {
 	Args []string
 }
 
-var (
-	afmts = map[string]Afmt{
-		".opus": {
-			Fmt:  "ogg",
-			Mime: "audio/ogg",
-			Args: []string{
-				"-b:a", "128000",
-				"-compression_level", "0",
-			},
+var afmts = map[string]Afmt{
+	".opus": {
+		Fmt:  "ogg",
+		Mime: "audio/ogg",
+		Args: []string{
+			"-b:a", "128000",
+			"-compression_level", "0",
 		},
-		".mp3": {
-			Fmt:  "mp3",
-			Mime: "audio/mpeg",
-			Args: []string{
-				"-q", "4",
-			},
+	},
+	".mp3": {
+		Fmt:  "mp3",
+		Mime: "audio/mpeg",
+		Args: []string{
+			"-q", "4",
 		},
-	}
-)
+	},
+}
 
 // Song represents a song in a library.
 type Song struct {
@@ -182,8 +187,8 @@ type Library struct {
 }
 
 type tags struct {
-	Format  map[string]interface{}
-	Streams []map[string]interface{}
+	Format  map[string]interface{}   `json:"format"`
+	Streams []map[string]interface{} `json:"streams"`
 }
 
 func valRaw(key string, cont map[string]interface{}) (val string, ok bool) {
@@ -520,6 +525,19 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func flagIsSet(name string) (isSet bool) {
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			isSet = true
+		}
+	})
+	return
+}
+
+func flagUnset(name string) {
+	log.Fatalf("missing %s flag", name)
+}
+
 func getHash() (hash []byte, err error) {
 	fmt.Print("Enter a password: ")
 	password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
@@ -532,11 +550,23 @@ func getHash() (hash []byte, err error) {
 }
 
 func main() {
-	flibrary := flag.String("library", "", "the library directory")
-	fport := flag.Uint("port", 21313, "the port to listen on")
+	flibrary := flag.String(flibraryName, "", "the library directory")
+	fport := flag.Uint(fportName, 21313, "the port to listen on")
+	fcert := flag.String(fcertName, "", "the TLS certificate to use")
+	fkey := flag.String(fkeyName, "", "the TLS key to use")
 	flag.Parse()
-	if *flibrary == "" {
-		log.Fatal("missing library flag")
+	if !flagIsSet(flibraryName) {
+		flagUnset(flibraryName)
+	}
+	if flagIsSet(fcertName) && !flagIsSet(fkeyName) {
+		flagUnset(fkeyName)
+	}
+	if !flagIsSet(fcertName) && flagIsSet(fkeyName) {
+		flagUnset(fcertName)
+	}
+	noTLS := !flagIsSet(fcertName) && !flagIsSet(fkeyName)
+	if noTLS {
+		log.Println("no TLS files specified: connections are insecure!")
 	}
 	hash, err := getHash()
 	if err != nil {
@@ -547,5 +577,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *fport), l))
+	http.Handle("/", l)
+	if noTLS {
+		err = http.ListenAndServe(fmt.Sprintf(":%d", *fport), nil)
+	} else {
+		err = http.ListenAndServeTLS(fmt.Sprintf(":%d", *fport),
+			*fcert,
+			*fkey,
+			nil)
+	}
+	log.Fatal(err)
 }

@@ -2,5 +2,7 @@ river
 river.exe
 ffmpeg.exe
 ffprobe.exe
+.cert.pem
+.key.pem
 .library.json
 .stream

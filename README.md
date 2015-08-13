@@ -67,9 +67,13 @@ browser's trusted list is highly recommended.
 Note that track and disc numbers should begin at `1`. Numbers lower than
 `1` indicate that the field is missing or should be treated as such.
 
-If you are building a browser client, note that direct links to the stream URLs
-will not work, as any requests to the server whose method is not `OPTIONS` will
-return `401`. You can use `URL.createObjectURL` in JavaScript instead, e.g.:
+All API methods besides `OPTIONS` require basic authentication, where the
+password matches the password given to the server by the user. Clients will need
+to prompt the user for the password before accessing the API.
+
+If you are building a browser client, note that direct `src` links to the stream
+URLs will not work due to the required authentication. You can use
+`URL.createObjectURL` in JavaScript instead, e.g.:
 
 ```javascript
 var audio = document.createElement("audio");

@@ -67,6 +67,27 @@ browser's trusted list is highly recommended.
 Note that track and disc numbers should begin at `1`. Numbers lower than
 `1` indicate that the field is missing or should be treated as such.
 
+If you are building a browser client, note that direct links to the stream URLs
+will not work, as any requests to the server whose method is not `OPTIONS` will
+return `401`. You can use `URL.createObjectURL` in JavaScript instead, e.g.:
+
+```javascript
+var audio = document.createElement("audio");
+var xhr = new XMLHttpRequest();
+
+xhr.onload = function() {
+	var source = document.createElement("source");
+	source.src = URL.createObjectURL(xhr.response);
+	source.type = "audio/ogg";
+	audio.appendChild(source);
+}
+
+xhr.open("GET", "https://www.mydomain.com/songs/iswkgapo.opus");
+xhr.responseType = "blob";
+xhr.setRequestHeader("Authorization", "Basic " + btoa(":asanisimasa");
+xhr.send();
+```
+
 #### Get a list of songs in the library
 
 ```http

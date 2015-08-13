@@ -432,6 +432,11 @@ func NewLibrary(path string, hash []byte) (l *Library, err error) {
 	return
 }
 
+func (l *Library) optionsSongs(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Methods", "PUT, GET, OPTIONS")
+	w.WriteHeader(http.StatusOK)
+}
+
 func (l *Library) putSongs(w http.ResponseWriter, r *http.Request) (success bool) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -448,18 +453,17 @@ func (l *Library) getSongs(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode(l.sorted)
 }
 
-func (l *Library) optionsSongs(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Methods", "PUT, GET, OPTIONS")
-	w.Header().Set("WWW-Authenticate", "Basic realm=\"River\"")
-	w.WriteHeader(http.StatusOK)
-}
-
 func httpError(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
 }
 
 func streamPath(s *Song, ext string) string {
 	return filepath.Join(streamDirPath, s.ID) + ext
+}
+
+func (l Library) optionsStream(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (l *Library) getStream(w http.ResponseWriter, r *http.Request) {
@@ -489,11 +493,10 @@ func (l *Library) getStream(w http.ResponseWriter, r *http.Request) {
 func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
-	streamREMatch := l.streamRE.MatchString(r.URL.Path)
-	if !streamREMatch && r.Method != "OPTIONS" {
+	if r.Method != "OPTIONS" {
 		_, password, ok := r.BasicAuth()
-		if !ok || bcrypt.CompareHashAndPassword(l.hash,
-			[]byte(password)) != nil {
+		if !ok ||
+			bcrypt.CompareHashAndPassword(l.hash, []byte(password)) != nil {
 			httpError(w, http.StatusUnauthorized)
 			return
 		}
@@ -513,8 +516,10 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			httpError(w, http.StatusMethodNotAllowed)
 		}
-	case streamREMatch:
+	case l.streamRE.MatchString(r.URL.Path):
 		switch r.Method {
+		case "OPTIONS":
+			l.optionsStream(w)
 		case "GET":
 			l.getStream(w, r)
 		default:

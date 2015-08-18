@@ -46,6 +46,8 @@ const (
 type Afmt struct {
 	// Fmt is the format's name in ffmpeg/avconv.
 	Fmt string
+	// Codec is the format's codec in ffmpeg/avconv.
+	Codec string
 	// Mime is the MIME type of the format.
 	Mime string
 	// Args are the codec-specific ffmpeg/avconv arguments to use.
@@ -55,6 +57,7 @@ type Afmt struct {
 var afmts = map[string]Afmt{
 	".opus": {
 		Fmt:  "ogg",
+		Codec: "libopus",
 		Mime: "audio/ogg; codecs=\"opus\"",
 		Args: []string{
 			"-b:a", "128000",
@@ -63,6 +66,7 @@ var afmts = map[string]Afmt{
 	},
 	".mp3": {
 		Fmt:  "mp3",
+		Codec: "libmp3lame",
 		Mime: "audio/mpeg; codecs=\"mp3\"",
 		Args: []string{
 			"-q", "4",
@@ -140,7 +144,7 @@ func NewEncoder(convCmd string) *Encoder {
 }
 
 // Encode encodes src to the audio format specified by af, writing to dest.
-func (e *Encoder) Encode(dest string, src string, af Afmt) error {
+func (e *Encoder) Encode(s *Song, dest string, src string, af Afmt) error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	mutex, ok := e.encoding[dest]
@@ -158,12 +162,19 @@ func (e *Encoder) Encode(dest string, src string, af Afmt) error {
 	}
 	args := []string{
 		"-i", src,
+		"-codec", af.Codec,
+		"-metadata", fmt.Sprintf("artist=%s", s.Artist),
+		"-metadata", fmt.Sprintf("album=%s", s.Album),
+		"-metadata", fmt.Sprintf("disc=%d", s.Disc),
+		"-metadata", fmt.Sprintf("track=%d", s.Track),
+		"-metadata", fmt.Sprintf("title=%s", s.Title),
 		"-f", af.Fmt,
 	}
 	args = append(args, af.Args...)
 	args = append(args, dest)
-	if err = exec.Command(e.convCmd, args...).Run(); err != nil {
-		if _, err = os.Stat(dest); err == nil {
+	err = exec.Command(e.convCmd, args...).Run()
+	if err != nil {
+		if _, err := os.Stat(dest); err == nil {
 			os.Remove(dest)
 		}
 	}
@@ -482,7 +493,7 @@ func (l *Library) getStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	streamPath := streamPath(s, ext)
-	if l.enc.Encode(streamPath, l.absPath(s.Path), af) != nil {
+	if l.enc.Encode(s, streamPath, l.absPath(s.Path), af) != nil {
 		httpError(w, http.StatusInternalServerError)
 		return
 	}

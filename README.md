@@ -72,8 +72,10 @@ password matches the password given to the server by the user. Clients will need
 to prompt the user for the password before accessing the API.
 
 If you are building a browser client, note that direct `src` links to the stream
-URLs will not work due to the required authentication. You can use
-`URL.createObjectURL` in JavaScript instead, e.g.:
+URLs will not work due to the required authentication. You can use URL-based
+basic authentication (`protocol://:password@host...`) in `src` attributes, but
+this is unsupported in Internet Explorer and probably other browsers soon. You
+can use `URL.createObjectURL` in JavaScript instead, e.g.:
 
 ```javascript
 var audio = document.createElement("audio");
@@ -91,6 +93,9 @@ xhr.responseType = "blob";
 xhr.setRequestHeader("Authorization", "Basic " + btoa(":asanisimasa");
 xhr.send();
 ```
+
+However, this method requires the entire file to be downloaded before playback
+begines.
 
 #### Get a list of songs in the library
 

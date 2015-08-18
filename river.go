@@ -55,7 +55,7 @@ type Afmt struct {
 var afmts = map[string]Afmt{
 	".opus": {
 		Fmt:  "ogg",
-		Mime: "audio/ogg",
+		Mime: "audio/ogg; codecs=\"opus\"",
 		Args: []string{
 			"-b:a", "128000",
 			"-compression_level", "0",
@@ -63,7 +63,7 @@ var afmts = map[string]Afmt{
 	},
 	".mp3": {
 		Fmt:  "mp3",
-		Mime: "audio/mpeg",
+		Mime: "audio/mpeg; codecs=\"mp3\"",
 		Args: []string{
 			"-q", "4",
 		},
@@ -497,6 +497,7 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, password, ok := r.BasicAuth()
 		if !ok ||
 			bcrypt.CompareHashAndPassword(l.hash, []byte(password)) != nil {
+			w.Header().Set("WWW-Authenticate", "Basic realm=\"River\"")
 			httpError(w, http.StatusUnauthorized)
 			return
 		}

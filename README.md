@@ -36,10 +36,12 @@ either copy the `ffmpeg` and `ffprobe` executables to this directory, somewhere
 in your system's PATH, or add the location of the executables to your system's
 PATH. Windows and OS X releases should come with the executables bundled.
 
-Running
--------
+Usage
+-----
 
-    river -library=[path to library]
+Serve the music located at `PATH`:
+
+    river [OPTIONS] [PATH]
 
 To connect to the server, you can use
 [river-web](https://github.com/wwalexander/river-web), a browser-based
@@ -48,9 +50,7 @@ River client. An iOS client will probably be in the works soon.
 If you'd like to build your own client, you can use the server's JSON API,
 detailed [below](#api).
 
-### Flags
-
-`-library`: the library directory
+### Options
 
 `-port`: the port to listen on (defaults to 21313)
 

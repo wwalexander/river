@@ -36,7 +36,6 @@ const (
 const songIDLength = 8
 
 const (
-	flibraryName = "library"
 	fportName    = "port"
 	fcertName    = "cert"
 	fkeyName     = "key"
@@ -551,10 +550,6 @@ func flagIsSet(name string) (isSet bool) {
 	return
 }
 
-func flagUnset(name string) {
-	log.Fatalf("missing %s flag", name)
-}
-
 func getHash() (hash []byte, err error) {
 	fmt.Print("Enter a password: ")
 	password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
@@ -566,22 +561,27 @@ func getHash() (hash []byte, err error) {
 	return
 }
 
+func ErrMissingFlag(name string) error {
+	return fmt.Errorf("missing flag: %s", name)
+}
+
 func main() {
-	flibrary := flag.String(flibraryName, "", "the library directory")
 	fport := flag.Uint(fportName, 21313, "the port to listen on")
 	fcert := flag.String(fcertName, "", "the TLS certificate to use")
 	fkey := flag.String(fkeyName, "", "the TLS key to use")
 	flag.Parse()
-	if !flagIsSet(flibraryName) {
-		flagUnset(flibraryName)
+	args := flag.Args()
+	if len(args) != 1 {
+		flag.Usage()
+		os.Exit(1)
 	}
 	fcertSet := flagIsSet(fcertName)
 	fkeySet := flagIsSet(fkeyName)
 	if fcertSet && !fkeySet {
-		flagUnset(fkeyName)
+		log.Fatal(ErrMissingFlag(fkeyName))
 	}
 	if !fcertSet && fkeySet {
-		flagUnset(fcertName)
+		log.Fatal(ErrMissingFlag(fcertName))
 	}
 	noTLS := !fcertSet && !fkeySet
 	if noTLS {
@@ -592,7 +592,7 @@ func main() {
 		log.Fatal(err)
 	}
 	os.Mkdir(streamDirPath, os.ModeDir)
-	l, err := NewLibrary(*flibrary, hash)
+	l, err := NewLibrary(args[0], hash)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -113,6 +113,7 @@ Content-Type: application/json
 	{
 		"id": "iswkgapo",
 		"path": "Bob Dylan/Bringing It All Back Home/Mr. Tambourine Man.flac",
+		"time": "2015-05-28T10:06:04-08:00",
 		"artist": "Bob Dylan",
 		"album": "Bringing It All Back Home",
 		"disc": 2,
@@ -122,6 +123,7 @@ Content-Type: application/json
 	{
 		"id": "wybtohyc",
 		"path": "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
+		"time": "2015-05-28T10:06:04-08:00",
 		"artist": "Neutral Milk Hotel",
 		"album": "In the Aeroplane over the Sea",
 		"disc": 0,
@@ -147,6 +149,7 @@ Content-Type: application/json
 	{
 		"id": "iswkgapo",
 		"path": "Bob Dylan/Bringing It All Back Home/Mr. Tambourine Man.flac",
+		"time": "2015-05-28T10:06:04-08:00",
 		"artist": "Bob Dylan",
 		"album": "Bringing It All Back Home",
 		"disc": 2,
@@ -156,6 +159,7 @@ Content-Type: application/json
 	{
 		"id": "ihnqqjce",
 		"path": "Neutral Milk Hotel/Ferris Wheel on Fire/Home.flac",
+		"time": "2015-05-28T10:06:04-08:00",
 		"artist": "Neutral Milk Hotel",
 		"album": "Ferris Wheel on Fire",
 		"disc": 0,
@@ -165,6 +169,7 @@ Content-Type: application/json
 	{
 		"id": "wybtohyc",
 		"path": "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
+		"time": "2015-06-02T08:14:01-08:00",
 		"artist": "Neutral Milk Hotel",
 		"album": "In the Aeroplane over the Sea",
 		"disc": 0,

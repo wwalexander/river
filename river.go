@@ -550,6 +550,10 @@ func flagIsSet(name string) (isSet bool) {
 	return
 }
 
+func ErrMissingFlag(name string) error {
+	return fmt.Errorf("missing flag: %s", name)
+}
+
 func getHash() (hash []byte, err error) {
 	fmt.Print("Enter a password: ")
 	password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
@@ -559,10 +563,6 @@ func getHash() (hash []byte, err error) {
 	}
 	hash, err = bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 	return
-}
-
-func ErrMissingFlag(name string) error {
-	return fmt.Errorf("missing flag: %s", name)
 }
 
 func main() {

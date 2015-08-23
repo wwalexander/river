@@ -36,9 +36,9 @@ const (
 const songIDLength = 8
 
 const (
-	fportName    = "port"
-	fcertName    = "cert"
-	fkeyName     = "key"
+	fportName = "port"
+	fcertName = "cert"
+	fkeyName  = "key"
 )
 
 // Afmt represents an audio format supported by ffmpeg/avconv.
@@ -55,18 +55,18 @@ type Afmt struct {
 
 var afmts = map[string]Afmt{
 	".opus": {
-		Fmt:  "ogg",
+		Fmt:   "ogg",
 		Codec: "libopus",
-		Mime: "audio/ogg; codecs=\"opus\"",
+		Mime:  "audio/ogg; codecs=\"opus\"",
 		Args: []string{
 			"-b:a", "128000",
 			"-compression_level", "0",
 		},
 	},
 	".mp3": {
-		Fmt:  "mp3",
+		Fmt:   "mp3",
 		Codec: "libmp3lame",
-		Mime: "audio/mpeg; codecs=\"mp3\"",
+		Mime:  "audio/mpeg; codecs=\"mp3\"",
 		Args: []string{
 			"-q", "4",
 		},

@@ -550,10 +550,6 @@ func flagIsSet(name string) (isSet bool) {
 	return
 }
 
-func ErrMissingFlag(name string) error {
-	return fmt.Errorf("missing flag: %s", name)
-}
-
 func getHash() (hash []byte, err error) {
 	fmt.Print("Enter a password: ")
 	password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
@@ -578,10 +574,10 @@ func main() {
 	fcertSet := flagIsSet(fcertName)
 	fkeySet := flagIsSet(fkeyName)
 	if fcertSet && !fkeySet {
-		log.Fatal(ErrMissingFlag(fkeyName))
+		log.Fatalf("%s set without %s", fcertName, fkeyName)
 	}
 	if !fcertSet && fkeySet {
-		log.Fatal(ErrMissingFlag(fcertName))
+		log.Fatalf("%s set without %s", fkeyName, fcertName)
 	}
 	noTLS := !fcertSet && !fkeySet
 	if noTLS {

@@ -34,7 +34,8 @@ called `ffmpeg` or `libav-tools` and install it. Otherwise, download an FFmpeg
 build from [the official website](https://www.ffmpeg.org/download.html), and
 either copy the `ffmpeg` and `ffprobe` executables to this directory, somewhere
 in your system's PATH, or add the location of the executables to your system's
-PATH. Windows and OS X releases should come with the executables bundled.
+PATH. Windows and OS X (`darwin`) releases come with the executables bundled,
+as they lack an official package manager.
 
 Usage
 -----

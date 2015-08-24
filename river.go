@@ -542,12 +542,13 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func flagIsSet(name string) bool {
+	set := false
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == name {
-			return true
+			set = true
 		}
 	})
-	return false
+	return set
 }
 
 func getHash() (hash []byte, err error) {
@@ -598,13 +599,11 @@ func main() {
 		log.Fatal(err)
 	}
 	http.Handle("/", l)
+	addr := fmt.Sprintf(":%d", *fport)
 	if noTLS {
-		err = http.ListenAndServe(fmt.Sprintf(":%d", *fport), nil)
+		err = http.ListenAndServe(addr, nil)
 	} else {
-		err = http.ListenAndServeTLS(fmt.Sprintf(":%d", *fport),
-			*fcert,
-			*fkey,
-			nil)
+		err = http.ListenAndServeTLS(addr, *fcert, *fkey, nil)
 	}
 	log.Fatal(err)
 }

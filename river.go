@@ -562,9 +562,9 @@ func getHash() (hash []byte, err error) {
 }
 
 func main() {
-	fport := flag.Uint(fportName, 21313, "the port to listen on")
 	fcert := flag.String(fcertName, "", "the TLS certificate to use")
 	fkey := flag.String(fkeyName, "", "the TLS key to use")
+	fport := flag.Uint(fportName, 21313, "the port to listen on")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "%s [OPTIONS] [PATH]\n", os.Args[0])

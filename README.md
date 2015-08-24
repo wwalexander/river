@@ -52,11 +52,11 @@ detailed [below](#api).
 
 ### Options
 
-`-port`: the port to listen on (defaults to 21313)
+`-key`: the TLS key to use
+
+`-port`: the port to listen on (default 21313)
 
 `-cert`: the TLS certificate to use
-
-`-key`: the TLS key to use
 
 The TLS flags can be omitted, but connections will be insecure. Creating a
 self-signed certificate and key and adding the certificate to your device or
@@ -95,7 +95,7 @@ xhr.send();
 ```
 
 However, this method requires the entire file to be downloaded before playback
-begines.
+begins.
 
 #### Get a list of songs in the library
 

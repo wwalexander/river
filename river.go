@@ -541,13 +541,13 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func flagIsSet(name string) (isSet bool) {
+func flagIsSet(name string) bool {
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == name {
-			isSet = true
+			return true
 		}
 	})
-	return
+	return false
 }
 
 func getHash() (hash []byte, err error) {

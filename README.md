@@ -52,11 +52,11 @@ detailed [below](#api).
 
 ### Options
 
+`-cert`: the TLS certificate to use
+
 `-key`: the TLS key to use
 
 `-port`: the port to listen on (default 21313)
-
-`-cert`: the TLS certificate to use
 
 The TLS flags can be omitted, but connections will be insecure. Creating a
 self-signed certificate and key and adding the certificate to your device or

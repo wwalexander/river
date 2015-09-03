@@ -541,12 +541,10 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func flagIsSet(name string) bool {
-	set := false
+func setFlags() map[string]bool {
+	set := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) {
-		if f.Name == name {
-			set = true
-		}
+		set[f.Name] = true
 	})
 	return set
 }
@@ -577,8 +575,9 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	fcertSet := flagIsSet(fcertName)
-	fkeySet := flagIsSet(fkeyName)
+	setFlags := setFlags()
+	_, fcertSet := setFlags[fcertName]
+	_, fkeySet := setFlags[fkeyName]
 	if fcertSet && !fkeySet {
 		log.Fatalf("%s set without %s", fcertName, fkeyName)
 	}

@@ -543,9 +543,7 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func setFlags() map[string]bool {
 	set := make(map[string]bool)
-	flag.Visit(func(f *flag.Flag) {
-		set[f.Name] = true
-	})
+
 	return set
 }
 
@@ -575,14 +573,17 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	setFlags := setFlags()
-	_, fcertSet := setFlags[fcertName]
-	_, fkeySet := setFlags[fkeyName]
+	fcertSet := false
+	fkeySet := false
+	flag.Visit(func(f *flag.Flag) {
+		fcertSet = f.Name == fcertName
+		fkeySet = f.Name == fkeyName
+	})
 	if fcertSet && !fkeySet {
-		log.Fatalf("%s set without %s", fcertName, fkeyName)
+		log.Fatalf("%s flag set without %s", fcertName, fkeyName)
 	}
 	if !fcertSet && fkeySet {
-		log.Fatalf("%s set without %s", fkeyName, fcertName)
+		log.Fatalf("%s flag set without %s", fkeyName, fcertName)
 	}
 	noTLS := !fcertSet && !fkeySet
 	if noTLS {

@@ -93,7 +93,7 @@ type Song struct {
 	Title string `json:"title"`
 }
 
-// ByTags sorts Songs by their tags, with the following priority:
+// ByTags sorts Songs case-insensitively with the following priority:
 // artist, album, disc number, track number, title, library path
 type ByTags []*Song
 

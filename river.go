@@ -87,7 +87,7 @@ type Song struct {
 	// Fmt is the Song's format in ffmpeg/avconv.
 	Fmt string `json:"fmt"`
 	// Codec is the Song's codec in ffprobe/avprobe.
-	Codec string
+	Codec string `json:"codec"`
 	// Time is the last time the Song's source file was modified.
 	Time time.Time `json:"time"`
 	// Artist is the Song's artist.

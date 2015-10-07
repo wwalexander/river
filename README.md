@@ -171,7 +171,7 @@ Content-Type: application/json
 		"album":  "Ferris Wheel on Fire",
 		"disc":   0,
 		"track":  3,
-		"title":  "Home"
+		"title":  "Home",
 		"fmt":    "flac",
 		"codec":  "flac"
 	},

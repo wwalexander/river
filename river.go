@@ -58,20 +58,20 @@ type Afmt struct {
 
 var afmts = map[string]Afmt{
 	".opus": {
-		Fmt:       "ogg",
-		Codec: "opus",
-		Encoder:     "libopus",
-		Mime:      "audio/ogg; codecs=\"opus\"",
-		Args:      []string{
+		Fmt:     "ogg",
+		Codec:   "opus",
+		Encoder: "libopus",
+		Mime:    "audio/ogg; codecs=\"opus\"",
+		Args: []string{
 			"-b:a", "128000",
 			"-compression_level", "0",
 		},
 	},
 	".mp3": {
-		Fmt:   "mp3",
-		Codec: "mp3",
+		Fmt:     "mp3",
+		Codec:   "mp3",
 		Encoder: "libmp3lame",
-		Mime:  "audio/mpeg; codecs=\"mp3\"",
+		Mime:    "audio/mpeg; codecs=\"mp3\"",
 		Args: []string{
 			"-q", "4",
 		},
@@ -302,7 +302,7 @@ func (l Library) newSong(path string) (s *Song, err error) {
 	}
 	s = &Song{
 		Path: path,
-		Fmt: fmt.(string),
+		Fmt:  fmt.(string),
 	}
 	audio := false
 	for _, stream := range t.Streams {
@@ -607,6 +607,7 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+	libraryPath := args[0]
 	fcertSet := false
 	fkeySet := false
 	flag.Visit(func(f *flag.Flag) {
@@ -628,7 +629,7 @@ func main() {
 		log.Fatal(err)
 	}
 	os.Mkdir(streamDirPath, os.ModeDir)
-	l, err := NewLibrary(args[0], hash)
+	l, err := NewLibrary(libraryPath, hash)
 	if err != nil {
 		log.Fatal(err)
 	}

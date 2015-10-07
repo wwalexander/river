@@ -112,24 +112,28 @@ Content-Type: application/json
 ```json
 [
 	{
-		"id": "iswkgapo",
-		"path": "Bob Dylan/Bringing It All Back Home/Mr. Tambourine Man.flac",
-		"time": "2015-05-28T10:06:04-08:00",
+		"id":     "iswkgapo",
+		"path":   "Bob Dylan/Bringing It All Back Home/Mr. Tambourine Man.flac",
+		"time":   "2015-05-28T10:06:04-08:00",
 		"artist": "Bob Dylan",
-		"album": "Bringing It All Back Home",
-		"disc": 2,
-		"track": 1,
-		"title": "Mr. Tambourine Man"
+		"album":  "Bringing It All Back Home",
+		"disc":   2,
+		"track":  1,
+		"title":  "Mr. Tambourine Man",
+		"fmt":    "flac",
+		"codec":  "flac"
 	},
 	{
-		"id": "wybtohyc",
-		"path": "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
-		"time": "2015-05-28T10:06:04-08:00",
+		"id":     "wybtohyc",
+		"path":   "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
+		"time":   "2015-05-28T10:06:04-08:00",
 		"artist": "Neutral Milk Hotel",
-		"album": "In the Aeroplane over the Sea",
-		"disc": 0,
-		"track": 6,
-		"title": "Holland, 1945"
+		"album":  "In the Aeroplane over the Sea",
+		"disc":   0,
+		"track":  6,
+		"title":  "Holland, 1945",
+		"fmt":    "flac",
+		"codec":  "flac"
 	}
 ]
 ```
@@ -148,34 +152,40 @@ Content-Type: application/json
 ```json
 [
 	{
-		"id": "iswkgapo",
-		"path": "Bob Dylan/Bringing It All Back Home/Mr. Tambourine Man.flac",
-		"time": "2015-05-28T10:06:04-08:00",
+		"id":     "iswkgapo",
+		"path":   "Bob Dylan/Bringing It All Back Home/Mr. Tambourine Man.flac",
+		"time":   "2015-05-28T10:06:04-08:00",
 		"artist": "Bob Dylan",
-		"album": "Bringing It All Back Home",
-		"disc": 2,
-		"track": 1,
-		"title": "Mr. Tambourine Man"
+		"album":  "Bringing It All Back Home",
+		"disc":   2,
+		"track":  1,
+		"title":  "Mr. Tambourine Man",
+		"fmt":    "flac",
+		"codec":  "flac"
 	},
 	{
-		"id": "ihnqqjce",
-		"path": "Neutral Milk Hotel/Ferris Wheel on Fire/Home.flac",
-		"time": "2015-05-28T10:06:04-08:00",
+		"id":     "ihnqqjce",
+		"path":   "Neutral Milk Hotel/Ferris Wheel on Fire/Home.flac",
+		"time":   "2015-05-28T10:06:04-08:00",
 		"artist": "Neutral Milk Hotel",
-		"album": "Ferris Wheel on Fire",
-		"disc": 0,
-		"track": 3,
-		"title": "Home"
+		"album":  "Ferris Wheel on Fire",
+		"disc":   0,
+		"track":  3,
+		"title":  "Home"
+		"fmt":    "flac",
+		"codec":  "flac"
 	},
 	{
-		"id": "wybtohyc",
-		"path": "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
-		"time": "2015-06-02T08:14:01-08:00",
+		"id":     "wybtohyc",
+		"path":   "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
+		"time":   "2015-05-28T10:06:04-08:00",
 		"artist": "Neutral Milk Hotel",
-		"album": "In the Aeroplane over the Sea",
-		"disc": 0,
-		"track": 6,
-		"title": "Holland, 1945"
+		"album":  "In the Aeroplane over the Sea",
+		"disc":   0,
+		"track":  6,
+		"title":  "Holland, 1945",
+		"fmt":    "flac",
+		"codec":  "flac"
 	}
 ]
 ```

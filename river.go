@@ -84,10 +84,6 @@ type Song struct {
 	ID string `json:"id"`
 	// Path is the path to the Song's source file.
 	Path string `json:"path"`
-	// Fmt is the Song's format in ffmpeg/avconv.
-	Fmt string `json:"fmt"`
-	// Codec is the Song's codec in ffprobe/avprobe.
-	Codec string `json:"codec"`
 	// Time is the last time the Song's source file was modified.
 	Time time.Time `json:"time"`
 	// Artist is the Song's artist.
@@ -100,6 +96,10 @@ type Song struct {
 	Track int `json:"track"`
 	// Title is the Song's title.
 	Title string `json:"title"`
+	// Fmt is the Song's format in ffmpeg/avconv.
+	Fmt string `json:"fmt"`
+	// Codec is the Song's codec in ffprobe/avprobe.
+	Codec string `json:"codec"`
 }
 
 // ByTags sorts Songs case-insensitively with the following priority:

@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -45,27 +46,31 @@ const (
 type Afmt struct {
 	// Fmt is the format's name in ffmpeg/avconv.
 	Fmt string
-	// Codec is the format's codec in ffmpeg/avconv.
+	// Codec is the format's codec in ffprobe/avprobe.
 	Codec string
+	// Encoder is the format's encoder in ffmpeg/avconv.
+	Encoder string
 	// Mime is the MIME type of the format.
 	Mime string
-	// Args are the codec-specific ffmpeg/avconv arguments to use.
+	// Args are the encoder-specific ffmpeg/avconv arguments to use.
 	Args []string
 }
 
 var afmts = map[string]Afmt{
 	".opus": {
-		Fmt:   "ogg",
-		Codec: "libopus",
-		Mime:  "audio/ogg; codecs=\"opus\"",
-		Args: []string{
+		Fmt:       "ogg",
+		Codec: "opus",
+		Encoder:     "libopus",
+		Mime:      "audio/ogg; codecs=\"opus\"",
+		Args:      []string{
 			"-b:a", "128000",
 			"-compression_level", "0",
 		},
 	},
 	".mp3": {
 		Fmt:   "mp3",
-		Codec: "libmp3lame",
+		Codec: "mp3",
+		Encoder: "libmp3lame",
 		Mime:  "audio/mpeg; codecs=\"mp3\"",
 		Args: []string{
 			"-q", "4",
@@ -79,6 +84,10 @@ type Song struct {
 	ID string `json:"id"`
 	// Path is the path to the Song's source file.
 	Path string `json:"path"`
+	// Fmt is the Song's format in ffmpeg/avconv.
+	Fmt string `json:"fmt"`
+	// Codec is the Song's codec in ffprobe/avprobe.
+	Codec string
 	// Time is the last time the Song's source file was modified.
 	Time time.Time `json:"time"`
 	// Artist is the Song's artist.
@@ -161,7 +170,7 @@ func (e *Encoder) Encode(s *Song, dest string, src string, af Afmt) error {
 	}
 	args := []string{
 		"-i", src,
-		"-codec", af.Codec,
+		"-codec", af.Encoder,
 		"-metadata", fmt.Sprintf("artist=%s", s.Artist),
 		"-metadata", fmt.Sprintf("album=%s", s.Album),
 		"-metadata", fmt.Sprintf("disc=%d", s.Disc),
@@ -194,6 +203,14 @@ type Library struct {
 	enc       *Encoder
 	hash      []byte
 	streamRE  *regexp.Regexp
+}
+
+func isKind(val interface{}, kind reflect.Kind) bool {
+	return reflect.TypeOf(val).Kind() == kind
+}
+
+func (l Library) probeCmdError() error {
+	return fmt.Errorf("malformed %s output", l.probeCmd)
 }
 
 type tags struct {
@@ -272,20 +289,38 @@ func (l Library) newSong(path string) (s *Song, err error) {
 	if err = cmd.Wait(); err != nil {
 		return
 	}
-	if score := t.Format["probe_score"].(float64); score < 25 {
+	score, ok := t.Format["probe_score"]
+	if !ok || !isKind(score, reflect.Float64) {
+		return nil, l.probeCmdError()
+	}
+	if score.(float64) < 25 {
 		return nil, errors.New("undeterminable file type")
+	}
+	fmt, ok := t.Format["format_name"]
+	if !ok || !isKind(fmt, reflect.String) {
+		return nil, l.probeCmdError()
+	}
+	s = &Song{
+		Path: path,
+		Fmt: fmt.(string),
 	}
 	audio := false
 	for _, stream := range t.Streams {
-		if stream["codec_type"] == "audio" {
+		codecTypeRaw, ok := stream["codec_type"]
+		if !ok || !isKind(codecTypeRaw, reflect.String) {
+			return nil, l.probeCmdError()
+		}
+		if codecType := codecTypeRaw.(string); codecType == "audio" {
 			audio = true
+			codec := stream["codec_name"]
+			if !ok || !isKind(codec, reflect.String) {
+				return nil, l.probeCmdError()
+			}
+			s.Codec = codec.(string)
 		}
 	}
 	if !audio {
 		return nil, errors.New("no audio stream")
-	}
-	s = &Song{
-		Path: path,
 	}
 	sOld, ok := l.SongsByPath[s.Path]
 	if ok {
@@ -491,12 +526,17 @@ func (l *Library) getStream(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound)
 		return
 	}
+	w.Header().Set("Content-Type", af.Mime)
+	absPath := l.absPath(s.Path)
+	if s.Fmt == af.Fmt && s.Codec == af.Codec {
+		http.ServeFile(w, r, absPath)
+		return
+	}
 	streamPath := streamPath(s, ext)
-	if l.enc.Encode(s, streamPath, l.absPath(s.Path), af) != nil {
+	if l.enc.Encode(s, streamPath, absPath, af) != nil {
 		httpError(w, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", af.Mime)
 	http.ServeFile(w, r, streamPath)
 }
 
@@ -539,12 +579,6 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpError(w, http.StatusNotFound)
 	}
-}
-
-func setFlags() map[string]bool {
-	set := make(map[string]bool)
-
-	return set
 }
 
 func getHash() (hash []byte, err error) {

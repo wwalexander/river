@@ -138,6 +138,32 @@ Content-Type: application/json
 ]
 ```
 
+### Get info for a specific song in the library
+
+```http
+GET /songs/wybtohyc
+```
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+
+```json
+{
+	"id":     "wybtohyc",
+	"path":   "Neutral Milk Hotel/In the Aeroplane over the Sea/Holland, 1945.flac",
+	"time":   "2015-05-28T10:06:04-08:00",
+	"artist": "Neutral Milk Hotel",
+	"album":  "In the Aeroplane over the Sea",
+	"disc":   0,
+	"track":  6,
+	"title":  "Holland, 1945",
+	"fmt":    "flac",
+	"codec":  "flac"
+}
+```
+
 #### Reload the library (i.e. after adding music or editing tags)
 
 ```http

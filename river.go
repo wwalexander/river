@@ -32,14 +32,19 @@ const (
 const (
 	idLeastByte    = 'a'
 	idGreatestByte = 'z'
+	idLength       = 8
 )
-
-const songIDLength = 8
 
 const (
 	fportName = "port"
 	fcertName = "cert"
 	fkeyName  = "key"
+)
+
+const (
+	httpOptions = "OPTIONS"
+	httpGet     = "GET"
+	httpPut     = "PUT"
 )
 
 // Afmt represents an audio format supported by ffmpeg/avconv.
@@ -202,6 +207,7 @@ type Library struct {
 	mutex     *sync.RWMutex
 	enc       *Encoder
 	hash      []byte
+	songRE    *regexp.Regexp
 	streamRE  *regexp.Regexp
 }
 
@@ -326,7 +332,7 @@ func (l Library) newSong(path string) (s *Song, err error) {
 	if ok {
 		s.ID = sOld.ID
 	} else {
-		id, err := genID(songIDLength)
+		id, err := genID(idLength)
 		if err != nil {
 			return nil, err
 		}
@@ -456,10 +462,14 @@ func NewLibrary(path string, hash []byte) (l *Library, err error) {
 		return nil, err
 	}
 	l.enc = NewEncoder(convCmd)
-	if l.streamRE, err = regexp.Compile(fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}\\..+$",
+	songREFmt := fmt.Sprintf("^\\/songs\\/[%c-%c]{%d}",
 		idLeastByte,
 		idGreatestByte,
-		songIDLength)); err != nil {
+		idLength)
+	if l.songRE, err = regexp.Compile(songREFmt + "$"); err != nil {
+		return nil, err
+	}
+	if l.streamRE, err = regexp.Compile(songREFmt + "\\..+$"); err != nil {
 		return nil, err
 	}
 	if db, err := os.Open(marshalPath); err == nil {
@@ -477,18 +487,18 @@ func NewLibrary(path string, hash []byte) (l *Library, err error) {
 	return
 }
 
-func (l *Library) optionsSongs(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Methods", "PUT, GET, OPTIONS")
-	w.WriteHeader(http.StatusOK)
+func httpError(w http.ResponseWriter, status int) {
+	http.Error(w, http.StatusText(status), status)
 }
 
-func (l *Library) putSongs(w http.ResponseWriter, r *http.Request) (success bool) {
+func (l *Library) putSongs(w http.ResponseWriter, r *http.Request) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	if l.reload() != nil {
+	if err := l.reload(); err != nil {
 		httpError(w, http.StatusInternalServerError)
+		return err
 	}
-	return true
+	return nil
 }
 
 func (l *Library) getSongs(w http.ResponseWriter) {
@@ -498,17 +508,20 @@ func (l *Library) getSongs(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode(l.sorted)
 }
 
-func httpError(w http.ResponseWriter, status int) {
-	http.Error(w, http.StatusText(status), status)
-}
-
 func streamPath(s *Song, ext string) string {
 	return filepath.Join(streamDirPath, s.ID) + ext
 }
 
-func (l Library) optionsStream(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.WriteHeader(http.StatusOK)
+func (l *Library) getSong(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+	s, ok := l.SongsByID[path.Base(r.URL.Path)]
+	if !ok {
+		httpError(w, http.StatusNotFound)
+		return
+	}
+	json.NewEncoder(w).Encode(s)
 }
 
 func (l *Library) getStream(w http.ResponseWriter, r *http.Request) {
@@ -543,7 +556,7 @@ func (l *Library) getStream(w http.ResponseWriter, r *http.Request) {
 func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
-	if r.Method != "OPTIONS" {
+	if r.Method != httpOptions {
 		_, password, ok := r.BasicAuth()
 		if !ok ||
 			bcrypt.CompareHashAndPassword(l.hash, []byte(password)) != nil {
@@ -552,31 +565,51 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	switch {
-	case r.URL.Path == "/songs":
+	handle := func(methodHandlers map[string]func()) {
 		switch r.Method {
-		case "OPTIONS":
-			l.optionsSongs(w)
-		case "PUT":
-			if !l.putSongs(w, r) {
+		case httpOptions:
+			allowedMethods := make([]string, 0, len(methodHandlers))
+			for method := range methodHandlers {
+				allowedMethods = append(allowedMethods, method)
+			}
+			w.Header().Set("Access-Control-Allow-Methods", strings.Join(allowedMethods, ", "))
+			w.WriteHeader(http.StatusOK)
+		default:
+			handler, ok := methodHandlers[r.Method]
+			if !ok {
+				httpError(w, http.StatusMethodNotAllowed)
 				return
 			}
-			fallthrough
-		case "GET":
-			l.getSongs(w)
-		default:
-			httpError(w, http.StatusMethodNotAllowed)
+			handler()
 		}
+	}
+	switch {
+	case r.URL.Path == "/songs":
+		handle(map[string]func(){
+			httpPut: func() {
+				if err := l.putSongs(w, r); err != nil {
+					return
+				}
+				l.getSongs(w)
+			},
+			httpGet: func() {
+				l.getSongs(w)
+			},
+		})
+	case l.songRE.MatchString(r.URL.Path):
+		handle(map[string]func(){
+			httpGet: func() {
+				l.getSong(w, r)
+			},
+		})
 	case l.streamRE.MatchString(r.URL.Path):
-		switch r.Method {
-		case "OPTIONS":
-			l.optionsStream(w)
-		case "GET":
-			l.getStream(w, r)
-		default:
-			httpError(w, http.StatusMethodNotAllowed)
-		}
+		handle(map[string]func(){
+			httpGet: func() {
+				l.getStream(w, r)
+			},
+		})
 	default:
+		log.Println("missed songRE")
 		httpError(w, http.StatusNotFound)
 	}
 }

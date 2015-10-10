@@ -644,8 +644,12 @@ func main() {
 	fcertSet := false
 	fkeySet := false
 	flag.Visit(func(f *flag.Flag) {
-		fcertSet = f.Name == fcertName
-		fkeySet = f.Name == fkeyName
+		if f.Name == fcertName {
+			fcertSet = true
+		}
+		if f.Name == fkeyName {
+			fkeySet = true
+		}
 	})
 	if fcertSet && !fkeySet {
 		log.Fatalf("%s flag set without %s", fcertName, fkeyName)

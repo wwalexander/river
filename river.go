@@ -215,7 +215,7 @@ func isKind(val interface{}, kind reflect.Kind) bool {
 	return reflect.TypeOf(val).Kind() == kind
 }
 
-func (l Library) probeCmdError() error {
+func (l *Library) probeCmdError() error {
 	return fmt.Errorf("malformed %s output", l.probeCmd)
 }
 
@@ -253,11 +253,11 @@ func valInt(valString string) (val int) {
 	return
 }
 
-func (l Library) absPath(path string) string {
+func (l *Library) absPath(path string) string {
 	return filepath.Join(l.Path, path)
 }
 
-func (l Library) relPath(path string) (rel string, err error) {
+func (l *Library) relPath(path string) (rel string, err error) {
 	return filepath.Rel(l.Path, path)
 }
 
@@ -274,7 +274,7 @@ func genID(length int) (string, error) {
 	return string(idBytes), nil
 }
 
-func (l Library) newSong(path string) (s *Song, err error) {
+func (l *Library) newSong(path string) (s *Song, err error) {
 	abs := l.absPath(path)
 	cmd := exec.Command(l.probeCmd,
 		"-print_format", "json",
@@ -378,7 +378,7 @@ func deleteStream(s *Song) (err error) {
 	return
 }
 
-func (l Library) marshal() (err error) {
+func (l *Library) marshal() (err error) {
 	db, err := os.OpenFile(marshalPath, os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return

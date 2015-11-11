@@ -609,7 +609,6 @@ func (l *Library) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 	default:
-		log.Println("missed songRE")
 		httpError(w, http.StatusNotFound)
 	}
 }

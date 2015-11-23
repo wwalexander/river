@@ -40,28 +40,27 @@ as they lack an official package manager.
 Usage
 -----
 
-Serve the music located at `PATH`:
+    river [-cert path] [-key path] [-port port] path
 
-    river [OPTIONS] [PATH]
+River serves the music located at path. The music can be accessed via a client
+on the port specified with the -port flag, or the default port. If the -cert
+and -key flags are specified, River will listen for HTTPS connections;
+otherwise, River will listen for HTTP connections.
 
-To connect to the server, you can use
-[river-web](https://github.com/wwalexander/river-web), a browser-based
-River client. An iOS client will probably be in the works soon.
+[river-web](https://github.com/wwalexander/river-web) is a browser-based River
+client.
 
 If you'd like to build your own client, you can use the server's JSON API,
 detailed [below](#api).
 
 ### Options
 
-`-cert`: the TLS certificate to use
-
-`-key`: the TLS key to use
-
-`-port`: the port to listen on (default 21313)
-
-The TLS flags can be omitted, but connections will be insecure. Creating a
-self-signed certificate and key and adding the certificate to your device or
-browser's trusted list is highly recommended.
+  -cert string
+        the TLS certificate to use
+  -key string
+        the TLS key to use
+  -port uint
+        the port to listen on (default 21313)
 
 ### API
 

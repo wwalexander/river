@@ -626,10 +626,10 @@ func getHash() (hash []byte, err error) {
 
 const usage = `usage of river: river [-cert path] [-key path] [-port port] path
 
-River serves the music located at the given path. The music can be accessed via
-a client on the port specified with the -port flag, or the default port. If the
--cert and -key flags are specified, River will listen for HTTPS connections;
-otherwise, River will listen for HTTP connections.`
+River serves the music located at the named path. The music can be accessed via
+a client on port 21313, or on the port named by the -port flag. If the -cert and
+-key flags are specified, River will listen for HTTPS connections; otherwise,
+River will listen for HTTP connections.`
 
 func main() {
 	fcert := flag.String(fcertName, "", "the TLS certificate to use")
@@ -637,7 +637,6 @@ func main() {
 	fport := flag.Uint(fportName, 21313, "the port to listen on")
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, usage)
-		flag.PrintDefaults()
 	}
 	flag.Parse()
 	args := flag.Args()
@@ -656,11 +655,9 @@ func main() {
 			fkeySet = true
 		}
 	})
-	if fcertSet && !fkeySet {
-		log.Fatalf("%s flag set without %s", fcertName, fkeyName)
-	}
-	if !fcertSet && fkeySet {
-		log.Fatalf("%s flag set without %s", fkeyName, fcertName)
+	if (fcertSet && !fkeySet) || (!fcertSet && fkeySet) {
+		flag.Usage()
+		os.Exit(1)
 	}
 	noTLS := !fcertSet && !fkeySet
 	if noTLS {

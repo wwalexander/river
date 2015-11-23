@@ -50,18 +50,6 @@ otherwise, River will listen for HTTP connections.
 [river-web](https://github.com/wwalexander/river-web) is a browser-based River
 client.
 
-If you'd like to build your own client, you can use the server's JSON API,
-detailed [below](#api).
-
-### Options
-
-  -cert string
-        the TLS certificate to use
-  -key string
-        the TLS key to use
-  -port uint
-        the port to listen on (default 21313)
-
 ### API
 
 Note that track and disc numbers should begin at `1`. Numbers lower than

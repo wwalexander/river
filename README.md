@@ -40,12 +40,12 @@ as they lack an official package manager.
 Usage
 -----
 
-    river [-cert path] [-key path] [-port port] path
+    river [-cert file] [-key file] [-port port] directory
 
-River serves the music located at the given path. The music can be accessed via
-a client on the port specified with the -port flag, or the default port. If the
--cert and -key flags are specified, River will listen for HTTPS connections;
-otherwise, River will listen for HTTP connections.
+river serves the music in the given directory. The music can be accessed via a
+client on port 21313, or on the port named by the -port flag. If the -cert and
+-key flags are specified, river will listen for HTTPS connections; otherwise,
+river will listen for HTTP connections.
 
 [river-web](https://github.com/wwalexander/river-web) is a browser-based River
 client.

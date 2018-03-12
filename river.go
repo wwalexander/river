@@ -624,12 +624,12 @@ func getHash() (hash []byte, err error) {
 	return
 }
 
-const usage = `usage of river: river [-cert path] [-key path] [-port port] path
+const usage = `usage: river [-cert file] [-key file] [-port port] directory
 
-River serves the music located at the named path. The music can be accessed via
-a client on port 21313, or on the port named by the -port flag. If the -cert and
--key flags are specified, River will listen for HTTPS connections; otherwise,
-River will listen for HTTP connections.`
+river serves the music in the given directory. The music can be accessed via a
+client on port 21313, or on the port named by the -port flag. If the -cert and
+-key flags are specified, river will listen for HTTPS connections; otherwise,
+river will listen for HTTP connections.`
 
 func main() {
 	fcert := flag.String(fcertName, "", "the TLS certificate to use")
